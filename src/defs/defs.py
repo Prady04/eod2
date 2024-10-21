@@ -601,9 +601,12 @@ def updateNseSymbol(symFile: Path, open, high, low, close, volume, trdCnt, dq):
         f"{dates.pandasDt},{open},{high},{low},{close},{volume},{trdCnt},{avgTrdCnt},{dq}\n",
         encoding="utf-8",
     )
-
-    with symFile.open("ab") as f:
-        f.write(text)
+    try:
+        with symFile.open("ab") as f:
+            f.write(text)
+    except Exception as e:
+        print(e)
+        pass
 
     if hook and hasattr(hook, "updateNseSymbol"):
         hook.updateNseSymbol(
