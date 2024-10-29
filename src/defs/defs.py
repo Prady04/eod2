@@ -849,9 +849,9 @@ def adjustNseStocks():
             logging.critical(f"Adjustment Error - Context {error_context}")
             # discard all pd.DataFrames and raise error,
             # so changes can be rolled back
-            df_commits.clear()
-            raise e
-            #pass
+            #df_commits.clear()
+            #raise e
+            pass
 
         # commit changes
         for sym, commit in df_commits.items():
