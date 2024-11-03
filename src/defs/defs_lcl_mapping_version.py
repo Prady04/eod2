@@ -70,7 +70,8 @@ def load_module(module_str: str) -> Union[ModuleType, Type]:
 
     module_path = Path(module_path).expanduser().resolve()
 
-    spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
+    spec = importlib.util.spec_from_file_location(
+        module_path.stem, module_path)
 
     if not spec or not spec.loader:
         raise ModuleNotFoundError(f"Could not load module {module_path.stem}")
@@ -112,12 +113,14 @@ class Dates:
 
         if self.dt.day == curTime.day and curTime.hour < 18:
             # Display the users local time
-            local_time = curTime.replace(hour=19, minute=0).astimezone(tz_local)
+            local_time = curTime.replace(
+                hour=19, minute=0).astimezone(tz_local)
 
             t_str = local_time.strftime("%I:%M%p")  # 07:00PM
 
             logger.info(
-                f"All Up To Date. Check again after {t_str} for today's EOD data"
+                f"All Up To Date. Check again after {
+                    t_str} for today's EOD data"
             )
             return False
 
@@ -290,7 +293,8 @@ def updatePendingDeliveryData(nse: NSE, date: str):
     except (RuntimeError, Exception):
         if daysSinceFailure == 5:
             logger.warning(
-                f"Max attempts reached: Aborting Future attempts for report dated {dt}"
+                f"Max attempts reached: Aborting Future attempts for report dated {
+                    dt}"
             )
             return True
 
@@ -351,7 +355,8 @@ def updatePendingDeliveryData(nse: NSE, date: str):
             hook.updatePendingDeliveryData(df, dt)
     except Exception as e:
         logger.exception(
-            f"Error updating delivery report dated {dt:%d %b %Y} - {error_context}",
+            f"Error updating delivery report dated {
+                dt:%d %b %Y} - {error_context}",
             exc_info=e,
         )
         FILE.unlink()
@@ -378,7 +383,8 @@ def updateAmiBrokerRecords(nse: NSE):
     totalDays = config.AMI_UPDATE_DAYS
 
     logger.info(
-        f"Fetching bhavcopy for last {totalDays} days, to convert to AmiBroker format."
+        f"Fetching bhavcopy for last {
+            totalDays} days, to convert to AmiBroker format."
     )
 
     logger.info("This is a one time process. It will take a few minutes.")
@@ -607,7 +613,8 @@ def updateNseSymbol(symFile: Path, open, high, low, close, volume, trdCnt, dq):
     avgTrdCnt = "" if trdCnt == "" else round(volume / trdCnt, 2)
 
     text += bytes(
-        f"{dates.pandasDt},{open},{high},{low},{close},{volume},{trdCnt},{avgTrdCnt},{dq}\n",
+        f"{dates.pandasDt},{open},{high},{low},{close},{
+            volume},{trdCnt},{avgTrdCnt},{dq}\n",
         encoding="utf-8",
     )
     try:
@@ -688,7 +695,8 @@ def makeAdjustment(
 
         if isinstance(idx, slice):
             logger.warning(
-                f"Duplicate dates detected on {symbol} making adjustment - {dates.dt}"
+                f"Duplicate dates detected on {
+                    symbol} making adjustment - {dates.dt}"
             )
             raise RuntimeError()
 
@@ -809,7 +817,8 @@ def adjustNseStocks():
                     sym += "_sme"
 
                 if ("split" in purpose or "splt" in purpose) and ex == dtStr:
-                    i = purpose.index("split" if "split" in purpose else "splt")
+                    i = purpose.index(
+                        "split" if "split" in purpose else "splt")
 
                     error_context = f"{sym} - Split - {dtStr}"
                     adjustmentFactor = getSplit(sym, purpose[i:])
@@ -858,8 +867,8 @@ def adjustNseStocks():
             logging.critical(f"Adjustment Error - Context {error_context}")
             # discard all pd.DataFrames and raise error,
             # so changes can be rolled back
-            #df_commits.clear()
-            #raise e
+            # df_commits.clear()
+            # raise e
             pass
 
         # commit changes
@@ -873,7 +882,8 @@ def adjustNseStocks():
                 idx = df.index.get_loc(dt)
             except KeyError:
                 logger.warning(
-                    f"Unable to verify adjustment on {sym} - Please confirm manually. - {dates.dt}"
+                    f"Unable to verify adjustment on {
+                        sym} - Please confirm manually. - {dates.dt}"
                 )
                 continue
 
@@ -886,7 +896,8 @@ def adjustNseStocks():
                 context = f"Current Close {close}, Previous Close {prev_close}"
 
                 logger.warning(
-                    f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
+                    f"WARN: Possible adjustment failure in {
+                        sym}: {context} - {dates.dt}"
                 )
 
             df.to_csv(file)

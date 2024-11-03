@@ -17,7 +17,7 @@ class Config:
 
     ## AMIBROKER ##
     AMIBROKER = True  # converts to Amibroker format on sync
-    AMI_UPDATE_DAYS = 60  # Number of days to convert on first run
+    AMI_UPDATE_DAYS = 90  # Number of days to convert on first run
 
     ## Delivery ##
     DLV_L1 = 1  # 1x average delivery
