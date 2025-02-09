@@ -337,3 +337,7 @@ src/BhavCopy_NSE_CM_0_0_0_20241015_F_0000.csv
 src/BhavCopy_NSE_CM_0_0_0_20241016_F_0000.csv
 src/BhavCopy_NSE_CM_0_0_0_20241017_F_0000.csv
 src/BhavCopy_NSE_CM_0_0_0_20241018_F_0000.csv
+/node_modules/
+/yfdata/
+*.png 
+*.csv 
