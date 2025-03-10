@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Data Viewer</title>
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>📈 Stock Data Viewer</h2>
+        
+        <label for="symbol">Enter Stock Symbol: </label>
+        <input type="text" id="symbol" value="AAPL">
+        <button onclick="loadData()">🔍 Fetch Data</button>
+
+        <table id="stockTable" class="display">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Close</th>
+                    <th>Adj Close</th>
+                    <th>Volume</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <script>
+        $(document).ready(function () {
+    let table = $("#stockTable").DataTable({
+        "columns": [
+            { "data": "datetime", "title": "Date" },
+            { "data": "symbol", "title": "Symbol" },
+            { "data": "open", "title": "Open" },
+            { "data": "high", "title": "High" },
+            { "data": "low", "title": "Low" },
+            { "data": "close", "title": "Close" },
+            { "data": "volume", "title": "Volume" }
+        ]
+    });
+
+    $("#fetchDataBtn").click(function () {
+        let symbol = $("#symbol").val();
+        if (!symbol) {
+            alert("Please enter a stock symbol!");
+            return;
+        }
+
+        $.getJSON(`/data/${symbol}`, function (data) {
+            table.clear();
+            table.rows.add(data);  // ✅ Correct JSON format
+            table.draw();
+        }).fail(() => {
+            alert("❌ Error fetching data! Please check the stock symbol.");
+        });
+    });
+});
+
+    </script>
+    <script>
+       function loadData() {
+    let symbol = document.getElementById("symbol").value;
+    if (!symbol) return alert("Please enter a stock symbol!");
+
+    $.getJSON(`/data/${symbol}`, function(data) {
+        let table = $("#stockTable").DataTable();
+        table.clear();
+      
+        data.forEach(row => {
+            table.row.add([
+                row.datetime,   // ✅ Match column name in JSON
+                row.open,
+                row.High_AAPL,
+                row.high,
+                row.close,
+                
+                row.volume
+            ]);
+        });
+
+        table.draw();
+    }).fail(() => {
+        alert("❌ Error fetching data! Please check the stock symbol.");
+    });
+}
+
+    </script>
+
+</body>
+</html>
