@@ -56,6 +56,13 @@ def fetch_5min_data(symbol, start_date, end_date):
 
     return None
 
+def save_last_update(last_date):
+    """Save the last fetched date to the JSON file."""
+    with open(LAST_UPDATE_FILE, "w") as f:
+        json.dump({"last_update": last_date}, f)
+    print(f"💾 Last update date saved: {last_date}")
+
+
 def save_data(dataframes):
     """Write data to a single file with one header and append new data correctly."""
     if not dataframes:
@@ -71,28 +78,44 @@ def save_data(dataframes):
 
     print(f"✅ Data saved in {OUTPUT_FILE}")
 
-def get_last_date_in_file():
-    """Find the last date available in the final CSV file."""
-    if os.path.exists(OUTPUT_FILE) and os.path.getsize(OUTPUT_FILE) > 0:
-        df = pd.read_csv(OUTPUT_FILE)
-        if "Date" in df.columns:
-            last_date = df["Date"].max()
-            return last_date
-    return None
+def load_last_update():
+    """Load the last update date from the JSON file."""
+    if os.path.exists(LAST_UPDATE_FILE):
+        try:
+            with open(LAST_UPDATE_FILE, "r") as f:
+                data = json.load(f)
+                return data.get("last_update")  # Returns the last update date as a string
+        except json.JSONDecodeError:
+            print("⚠ JSON file corrupted. Resetting last update date.")
+    
+    return None  # Default if file does not exist or is corrupted
+
 
 def get_required_dates():
-    """Determine the date range to fetch."""
-    last_date = get_last_date_in_file()
+    """Determine the correct start date using the last fetched date from JSON."""
+    last_date = load_last_update()
 
     if last_date:
-        start_date = datetime.strptime(last_date, "%Y-%m-%d").date() + timedelta(days=1)
+        try:
+            start_date = datetime.strptime(last_date, "%Y-%m-%d").date() + timedelta(days=1)
+            if start_date >= datetime.today().date():
+                print("✅ Data is already up-to-date. No need to fetch.")
+                return None, None
+            print(f"📅 Fetching data from {start_date} to {datetime.today().date()}")
+        except ValueError:
+            print("⚠ Invalid date format in JSON. Resetting to last 30 days.")
+            start_date = datetime.today().date() - timedelta(days=30)
     else:
-        start_date = datetime.today().date() - timedelta(days=30)
+        print("📂 No previous update found. Fetching last 30 days of data.")
+        start_date = datetime.today().date() - timedelta(days=30)  # First-time run
 
     return start_date, datetime.today().date()
 
 def main():
     start_date, end_date = get_required_dates()
+    if start_date is None or end_date is None:
+        print("✅ Data is already up-to-date. Exiting script.")
+        return  # Exit early if there's nothing to fetch
     all_data = []
     failed_symbols = []
     df = pd.read_csv('fnostocks.csv')
@@ -104,9 +127,7 @@ def main():
     save_data(all_data)
 
     # Update last download date to match last available date in the final CSV
-    last_date = get_last_date_in_file()
-    if last_date:
-        save_last_update(last_date)
+    save_last_update(str(end_date))
 
     if failed_symbols:
         print(f"❌ Failed to download: {', '.join(failed_symbols)}")
