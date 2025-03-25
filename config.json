@@ -1,0 +1,59 @@
+{
+    "database_path": "mutual_fund_tracker.db",
+    "output_directory": "output",
+    "funds": [
+      {
+        "scheme_code": "119551",
+        "benchmark_code": "NIFTY 50",
+        "transactions": [
+          {
+            "date": "2023-01-15",
+            "type": "BUY",
+            "amount": 10000
+          },
+          {
+            "date": "2023-02-15",
+            "type": "BUY",
+            "amount": 5000
+          },
+          {
+            "date": "2023-05-20",
+            "type": "SELL",
+            "units": 100.456
+          }
+        ]
+      },
+      {
+        "scheme_code": "120505",
+        "benchmark_code": "NIFTY MIDCAP 150",
+        "transactions": [
+          {
+            "date": "2023-03-10",
+            "type": "BUY",
+            "amount": 15000
+          },
+          {
+            "date": "2023-04-10",
+            "type": "BUY",
+            "amount": 15000
+          }
+        ]
+      },
+      {
+        "scheme_code": "120716",
+        "benchmark_code": "NIFTY 50",
+        "transactions": [
+          {
+            "date": "2023-01-05",
+            "type": "BUY",
+            "amount": 20000
+          },
+          {
+            "date": "2023-06-15",
+            "type": "BUY",
+            "amount": 10000
+          }
+        ]
+      }
+    ]
+  }
