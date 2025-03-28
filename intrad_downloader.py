@@ -97,7 +97,7 @@ def get_required_dates():
 
     if last_date:
         try:
-            start_date = datetime.strptime(last_date, "%Y-%m-%d").date() 
+            start_date = datetime.strptime(last_date, "%Y-%m-%d").date() + timedelta(days=1)
             if start_date >= datetime.today().date():
                 print("✅ Data is already up-to-date. No need to fetch.")
                 return None, None
@@ -120,20 +120,17 @@ def main():
     failed_symbols = []
     df = pd.read_csv('fnostocks.csv')
     for symbol in df['Symbol']:
-        try:
-            df = fetch_5min_data(symbol+".NS", start_date, end_date)
-            if df is not None:
-                all_data.append(df)
-        except Exception as e:
-            print("⚠ Error occured while downloading", e)
+        df = fetch_5min_data(symbol+".NS", start_date, end_date)
+        if df is not None:
+            all_data.append(df)
 
-        save_data(all_data)
+    save_data(all_data)
 
-        # Update last download date to match last available date in the final CSV
-        save_last_update(str(end_date))
+    # Update last download date to match last available date in the final CSV
+    save_last_update(str(end_date))
 
-        if failed_symbols:
-            print(f"❌ Failed to download: {', '.join(failed_symbols)}")
+    if failed_symbols:
+        print(f"❌ Failed to download: {', '.join(failed_symbols)}")
 
 if __name__ == "__main__":
     main()
