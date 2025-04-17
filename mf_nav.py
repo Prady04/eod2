@@ -2,8 +2,13 @@ import mftool
 
 def get_fund_metrics(fund_id):
     mf = mftool.Mftool()
-    fund_details = mf.get_scheme_quote(fund_id)
-    mf.get_open_ended_equity_scheme_performance()
+    fund_details = mf.get_scheme_details(fund_id)
+    print(mf.calculate_returns(fund_id,1000,500,36))
+    print(fund_details)
+    y = mf.get_scheme_info(fund_id)
+  
+    print(y)
+    exit()
     if fund_details:
         print(f"Fund Name: {fund_details['scheme_name']}")
         print(f"Net Asset Value (NAV): {fund_details['nav']}")

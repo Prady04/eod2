@@ -38,13 +38,14 @@ def fetch_mutual_fund_nav():
         try:
             response = requests.get(url + fund_id, timeout=5)
             response.raise_for_status()
+            print(response.json()["data"])
             nav = float(response.json()["data"][0]["nav"])  # Fetch today's NAV
             results[fund] = nav
         except Exception as e:
             print(f"⚠️ Error fetching {fund}: {e}")
     
     return results
-fetch_mutual_fund_nav()
+print(fetch_mutual_fund_nav())
 # Send Discord Alert
 def send_discord_alert(message):
     try:
