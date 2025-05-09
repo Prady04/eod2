@@ -343,3 +343,11 @@ src/BhavCopy_NSE_CM_0_0_0_20241018_F_0000.csv
 *.csv 
 simple.py
 zerodha.txt
+gann_levels_^NSEI.json
+gann_levels_AAPL.json
+gann_levels_GOOG.json
+gann_levels_MSFT.json
+gann_levels_TSLA.json
+gann_levels.json
+candles_^NSEI_5m.json
+candles_NIFTY_15m.json

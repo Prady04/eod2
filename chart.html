@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dynamic TradingView Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #controls {
+      padding: 10px;
+      background: #f4f4f4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #chart { width: 100%; height: calc(100vh - 50px); }
+    #countdown {
+      font-weight: bold;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div>
+      <label for="symbol-select">Choose Symbol:</label>
+      <select id="symbol-select">
+        <option value="^NSEI">^NSEI</option>
+        <option value="AAPL">AAPL</option>
+        <option value="MSFT">MSFT</option>
+        <option value="GOOG">GOOG</option>
+        <option value="TSLA">TSLA</option>
+      </select>
+    </div>
+    <div id="countdown">Next update in: --:--</div>
+  </div>
+
+  <div id="chart"></div>
+<!-- Embed this inside your HTML -->
+<div class="tradingview-widget-container">
+  <div id="tradingview_chart"></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script type="text/javascript">
+    new TradingView.widget({
+      "width": "100%",
+      "height": 600,
+      "symbol": "NSE:NIFTY",
+      "interval": "15",
+      "timezone": "Asia/Kolkata",
+      "theme": "light",
+      "style": "1",
+      "locale": "en",
+      "toolbar_bg": "#f1f3f6",
+      "enable_publishing": false,
+      "allow_symbol_change": true,
+      "container_id": "tradingview_chart"
+    });
+  </script>
+</div>
+  <script>
+    document.addEventListener("DOMContentLoaded", function(event) {
+      console.log('loaded')
+      loadIntraday15("^NSEI")
+      /* 
+        - Code to execute when only the HTML document is loaded.
+        - This doesn't wait for stylesheets, 
+          images, and subframes to finish loading. 
+      */
+  });
+   
+    const select = document.getElementById('symbol-select');
+    let chart, candleSeries, levelSeries = [], currentSymbol = "^NSEI", countdownInterval;
+
+    // Initialize chart
+    function initChart() {
+      if (chart) chart.remove();
+      chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        width: window.innerWidth,
+        height: window.innerHeight - 50,
+        layout: { background: { color: '#fff' }, textColor: '#000' },
+        grid: { vertLines: { color: '#eee' }, horzLines: { color: '#eee' } },
+      });
+      candleSeries = chart.addCandlestickSeries();
+    }
+
+    // Load both daily Gann and 15m intraday candles
+    function loadSymbol(symbol) {
+      currentSymbol = symbol;
+      Promise.all([
+        fetch(`candles_${symbol}.json`).then(r => r.json()),
+        fetch(`gann_levels_${symbol}.json`).then(r => r.json())
+      ]).then(([candles, levels]) => {
+        candleSeries.setData(candles);
+
+        levelSeries.forEach(s => chart.removeSeries(s));
+        levelSeries = [];
+
+        levels.forEach(level => {
+          const ls = chart.addLineSeries({
+            color: 'rgba(200, 0, 0, 0.4)',
+            lineWidth: 1
+          });
+          ls.setData([
+            { time: candles[0].time, value: level },
+            { time: candles[candles.length - 1].time, value: level }
+          ]);
+          levelSeries.push(ls);
+        });
+
+        scheduleNextUpdate();
+      }).catch(console.error);
+    }
+
+    // Load only 15m candles on update
+    function loadIntraday15(symbol) {
+      fetch(`intraday15_${symbol}.json`)
+        .then(r => r.json())
+        .then(candles => candleSeries.setData(candles))
+        .catch(console.error);
+    }
+
+
+   
+    // Countdown until next 15-min candle
+    function scheduleNextUpdate() {
+      clearInterval(countdownInterval);
+
+      const now = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istNow = new Date(now.getTime() + istOffset);
+
+      const minutes = istNow.getUTCMinutes();
+      const seconds = istNow.getUTCSeconds();
+      const ms = istNow.getUTCMilliseconds();
+
+      const minutesPast = minutes % 15;
+      const msUntilNextCandle = ((15 - minutesPast) * 60 - seconds) * 1000 - ms;
+      const nextUpdateTime = Date.now() + msUntilNextCandle;
+
+      countdownInterval = setInterval(() => {
+        const remaining = nextUpdateTime - Date.now();
+        if (remaining <= 0) return;
+
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        document.getElementById("countdown").textContent =
+          `Next update in: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }, 1000);
+
+      setTimeout(() => {
+        loadIntraday15(currentSymbol);
+        scheduleNextUpdate();
+      }, msUntilNextCandle);
+    }
+
+    select.addEventListener('change', () => loadSymbol(select.value));
+
+    initChart();
+    loadSymbol(select.value);
+
+    window.addEventListener('resize', () => chart.applyOptions({
+      width: window.innerWidth,
+      height: window.innerHeight - 50
+    }));
+  </script>
+</body>
+</html>

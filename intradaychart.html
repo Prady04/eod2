@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>NIFTY Intraday Charts</title>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #container { display: flex; flex-direction: column; height: 100vh; }
+    .chart-box { flex: 1; border-top: 1px solid #ccc; }
+    .label { padding: 5px 10px; background: #eee; font-weight: bold; }
+    .chart { width: 100%; height: calc(50vh - 20px); }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="chart-box">
+      <div class="label">NIFTY 5-min Chart</div>
+      <div id="chart-5m" class="chart"></div>
+    </div>
+    <div class="chart-box">
+      <div class="label">NIFTY 15-min Chart</div>
+      <div id="chart-15m" class="chart"></div>
+    </div>
+  </div>
+
+  <script>
+    function createChart(containerId, jsonFile) {
+      const chart = LightweightCharts.createChart(document.getElementById(containerId), {
+        layout: { background: { color: '#fff' }, textColor: '#000' },
+        grid: { vertLines: { color: '#eee' }, horzLines: { color: '#eee' } },
+        timeScale: { timeVisible: true, secondsVisible: false },
+      });
+
+      const candleSeries = chart.addCandlestickSeries();
+
+      fetch(jsonFile)
+        .then(response => response.json())
+        .then(data => {
+          candleSeries.setData(data);
+        })
+        .catch(err => console.error(`Error loading ${jsonFile}:`, err));
+    }
+
+    // Load both charts
+    createChart('chart-5m', 'candles_NIFTY_5m.json');
+    createChart('chart-15m', 'candles_NIFTY_15m.json');
+  </script>
+</body>
+</html>
