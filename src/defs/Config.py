@@ -18,6 +18,7 @@ class Config:
     ## AMIBROKER ##
     AMIBROKER = True  # converts to Amibroker format on sync
     AMI_UPDATE_DAYS = 90  # Number of days to convert on first run
+    AMI_DB_PATH = "C:\\Program Files\\Amibroker\\NSE"
 
     ## Delivery ##
     DLV_L1 = 1  # 1x average delivery

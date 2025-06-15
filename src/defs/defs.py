@@ -18,7 +18,14 @@ from nse import NSE
 from requests.exceptions import ChunkedEncodingError
 
 from defs.Config import Config
+import win32com.client
 
+imp_tbl = [
+    {'db': r"C:\\Program Files\\Amibroker\\NSE",     
+     'format': r"C:\\Program Files\\AmiBroker\\Formats\\eodaux1.format"},
+     {'db':'C:\\Program Files\\Amibroker\\NSE',    
+     'format': r"C:\\Program Files\\AmiBroker\\Formats\\myindex.format"}
+    ]
 
 def configure_logger():
     """Return a logger instance by name
@@ -457,8 +464,30 @@ def toAmiBrokerFormat(file: Path):
         "VOLUME",
         "Aux1",
     ]
-
+    csv_output_path = AMIBROKER_FOLDER / file.name
     df.to_csv(AMIBROKER_FOLDER / file.name, index=False)
+    # Import into AmiBroker using COM interface
+   
+    try:
+        logger.info("Importing stock data to Amibroker")
+        ab = win32com.client.Dispatch("Broker.Application")
+        ab.LoadDatabase(Config.AMI_DB_PATH)   
+        
+        # Import using ASCII import with your format file
+        importer = ab.Import(0,str(csv_output_path),str(imp_tbl[0]['format']))  # 0 = ASCII import
+        
+        ab.RefreshAll()
+        ab.SaveDatabase()
+        
+        logger.info(f"Successfully imported {csv_output_path} into AmiBroker database {Config.AMI_DB_PATH}")
+        
+        # Optionally delete the CSV file after import
+        # csv_output_path.unlink()
+        
+    except Exception as e:
+        ab.RefreshAll()
+        print(f"Error importing to AmiBroker: {e}")
+        print(f"CSV file saved at: {csv_output_path}")
 
 
 def updateNseEOD(bhavFile: Path, deliveryFile: Optional[Path]):
@@ -740,6 +769,26 @@ def updateIndexEOD(file: Path):
     df = pd.read_csv(file, index_col="Index Name")
 
     df.to_csv(folder / file.name)
+    csv_output_path = folder /file.name
+    try:
+        logger.info('importing index data to amibroker')
+        ab = win32com.client.Dispatch("Broker.Application")
+        ab.LoadDatabase(Config.AMI_DB_PATH)          
+        # Import using ASCII import with your format file
+        importer = ab.Import(0,str(csv_output_path),str(imp_tbl[1]['format']))  # 0 = ASCII import
+        
+        ab.RefreshAll()
+        ab.SaveDatabase()
+        
+        logger.info(f"Successfully imported {csv_output_path} into AmiBroker database {Config.AMI_DB_PATH}")
+        
+        # Optionally delete the CSV file after import
+        # csv_output_path.unlink()
+        
+    except Exception as e:
+        ab.RefreshAll()
+        print(f"Error importing to AmiBroker: {e}")
+        print(f"CSV file saved at: {csv_output_path}")
 
     indices = (
         (DIR / "eod2_data" / "sector_watchlist.csv")
