@@ -927,16 +927,16 @@ def adjustNseStocks():
                 continue
 
             close = df.at[df.index[idx], "Close"]
-            prev_close = df.at[df.index[idx - 1], "Close"]
+            prev_close = df.at[df.index[idx - 1], "Close"] # type: ignore
+            if not (prev_close.empty()):
+                diff = close / prev_close
 
-            diff = close / prev_close
+                if diff > 1.5 or diff < 0.67:
+                    context = f"Current Close {close}, Previous Close {prev_close}"
 
-            if diff > 1.5 or diff < 0.67:
-                context = f"Current Close {close}, Previous Close {prev_close}"
-
-                logger.warning(
-                    f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
-                )
+                    logger.warning(
+                        f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
+                    )
 
             df.to_csv(file)
 
