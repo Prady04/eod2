@@ -928,7 +928,7 @@ def adjustNseStocks():
 
             close = df.at[df.index[idx], "Close"]
             prev_close = df.at[df.index[idx - 1], "Close"] # type: ignore
-            if not (prev_close.empty()):
+            if (prev_close):
                 diff = close / prev_close
 
                 if diff > 1.5 or diff < 0.67:
