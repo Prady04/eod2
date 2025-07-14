@@ -425,7 +425,7 @@ def msmith():
     df.reset_index(inplace = True)
     df=df.rename({'Symbol': 'nsecode'}, axis='columns')
     df.to_csv(f'C:\\python\\flexstart\\cache\\mm.csv') 
-    shutil.copyfile('C:\\python\\flexstart\\cache\\mm.csv', 'C:\\Nshare\\mm.csv')
+    #shutil.copyfile('C:\\python\\flexstart\\cache\\mm.csv', 'C:\\Nshare\\mm.csv')
    
     if len(nps)>0:
         df = pd.concat([df,nps])
@@ -450,7 +450,10 @@ def msmith():
     df_clean = df.dropna(subset=['Symbol'])  # Remove null symbols
     df_clean = df_clean.drop(['level_0', 'index', 'Sno'], axis=1, errors='ignore')
     df_clean = df_clean.set_index('Symbol')  # Symbol as row names
-    json_output = df_clean.reset_index().to_json('others.json',orient='records', indent=2)
+    df_renamed_single = df_clean.rename(columns={'CompanyName': 'Company Name'})
+    shutil.copyfile("C:\\npm\\dotchart-main\\public\\others.json", "C:\\npm\\dotchart-main\\public\\others_b.json")
+    json_output = df_renamed_single.reset_index().to_json("C:\\npm\\dotchart-main\\public\\others.json",orient='records', indent=2)
+    print(json_output)
 
 
 if __name__=="__main__":   
