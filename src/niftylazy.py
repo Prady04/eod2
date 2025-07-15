@@ -9,11 +9,15 @@ import requests
 import io
 import logging
 
+
+handlers = [logging.FileHandler('./src/trading.log'), logging.StreamHandler()]
 # Set up logging
 logging.basicConfig(
-    filename='./trading.log',
+    
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=handlers
+
 )
 
 # File to store portfolio
@@ -66,7 +70,7 @@ def load_portfolio():
         portfolio = {}
     return portfolio
 
-# Save portfolio to file (append mode not needed, as we update the full structure)
+# Save portfolio to file
 def save_portfolio():
     try:
         with open(PORTFOLIO_FILE, 'w') as f:
@@ -75,19 +79,13 @@ def save_portfolio():
     except Exception as e:
         logging.error(f"Error saving portfolio: {e}")
 
-# Placeholder functions for trading API (replace with actual broker API calls)
+# Placeholder functions for trading API
 def place_sell_order(symbol, quantity):
     logging.info(f"SELL ORDER: {quantity} shares of {symbol} executed.")
-    # Example: Replace with Zerodha Kite or Alpaca API call
-    # kite.place_order(variety="regular", tradingsymbol=symbol.split('.')[0], exchange="NSE",
-    #                  quantity=quantity, transaction_type="SELL", order_type="MARKET")
     return True
 
 def place_buy_order(symbol, quantity):
     logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed for ₹15000.")
-    # Example: Replace with Zerodha Kite or Alpaca API call
-    # kite.place_order(variety="regular", tradingsymbol=symbol.split('.')[0], exchange="NSE",
-    #                  quantity=quantity, transaction_type="BUY", order_type="MARKET")
     return True
 
 # Fetch current price of a stock
@@ -172,11 +170,10 @@ def check_and_trade():
 
     # Step 3: Sell the stock with maximum gain if any
     if max_gain_stock:
-        # For simplicity, sell all entries for the stock (as per original strategy)
         quantity = sum(entry['quantity'] for entry in portfolio[max_gain_stock])
         if place_sell_order(max_gain_stock, quantity):
             logging.info(f"Sold {quantity} shares of {max_gain_stock} with {max_gain_percent:.2f}% gain.")
-            # Remove all entries for the sold stock
+            print(f"Sold {quantity} shares of {max_gain_stock} with {max_gain_percent:.2f}% gain.")
             del portfolio[max_gain_stock]
             save_portfolio()
         else:
@@ -184,49 +181,50 @@ def check_and_trade():
     else:
         logging.info("No stocks in portfolio are up 5% or more.")
 
-    # Step 4: Check Nifty 50 stocks for farthest from 20-day MA
-    max_deviation_stock = None
-    max_deviation = 0.0
+    # Step 4: Check Nifty 50 stocks for farthest from 20-day MA, excluding portfolio stocks
+    deviation_list = []
 
     for symbol in nifty50_stocks:
+        if symbol in portfolio:
+            logging.info(f"Skipping {symbol}: Already in portfolio.")
+            continue
         current_price = get_current_price(symbol)
         ma_20 = get_20_day_ma(symbol)
         if current_price is None or ma_20 is None:
             continue
         deviation = ((current_price - ma_20) / ma_20) * 100
         logging.info(f"{symbol}: Current Price={current_price:.2f}, 20-day MA={ma_20:.2f}, Deviation={deviation:.2f}%")
-        
-        # Select stock farthest below 20-day MA (most negative deviation)
-        if deviation < max_deviation:
-            max_deviation = deviation
-            max_deviation_stock = symbol
+        deviation_list.append((symbol, deviation, current_price))
 
-    # Step 5: Buy the stock farthest from 20-day MA
-    if max_deviation_stock:
-        current_price = get_current_price(max_deviation_stock)
-        if current_price is None:
-            logging.error(f"Cannot buy {max_deviation_stock} due to missing price data.")
-            return
-        # Calculate quantity to buy for ₹15000
-        quantity = int(15000 / current_price)
-        if quantity > 0:
-            if place_buy_order(max_deviation_stock, quantity):
-                logging.info(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
-                # Append new entry to portfolio
-                if max_deviation_stock not in portfolio:
-                    portfolio[max_deviation_stock] = []
-                portfolio[max_deviation_stock].append({
-                    'purchase_price': current_price,
-                    'quantity': quantity,
-                    'purchase_date': current_date
-                })
-                save_portfolio()
-            else:
-                logging.error(f"Failed to buy {max_deviation_stock}.")
+    # Step 5: Buy the stock farthest from 20-day MA (most negative deviation)
+    if not deviation_list:
+        logging.info("No eligible stocks for buying (all Nifty 50 stocks are in portfolio or no valid data).")
+        return
+
+    # Sort by deviation (ascending, most negative first)
+    deviation_list.sort(key=lambda x: x[1])
+   
+    max_deviation_stock, deviation, current_price = deviation_list[0]
+    logging.info(f"Selected {max_deviation_stock} for purchase (deviation={deviation:.2f}%).")
+
+    # Step 6: Execute buy order
+    quantity = int(15000 / current_price)
+    if quantity > 0:
+        if place_buy_order(max_deviation_stock, quantity):
+            logging.info(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
+            print(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
+            if max_deviation_stock not in portfolio:
+                portfolio[max_deviation_stock] = []
+            portfolio[max_deviation_stock].append({
+                'purchase_price': current_price,
+                'quantity': quantity,
+                'purchase_date': current_date
+            })
+            save_portfolio()
         else:
-            logging.error(f"Cannot buy {max_deviation_stock}: Insufficient funds for even 1 share.")
+            logging.error(f"Failed to buy {max_deviation_stock}.")
     else:
-        logging.info("No valid Nifty 50 stocks found for buying.")
+        logging.error(f"Cannot buy {max_deviation_stock}: Insufficient funds for even 1 share.")
 
 # Run the trading strategy
 if __name__ == "__main__":

@@ -4,7 +4,32 @@
             "purchase_price": 5314.5,
             "quantity": 2,
             "purchase_date": "2025-07-14"
+        },
+        {
+            "purchase_price": 5361.5,
+            "quantity": 2,
+            "purchase_date": "2025-07-15"
         }
-       
+    ],
+    "HCLTECH.NS": [
+        {
+            "purchase_price": 1573.2,
+            "quantity": 9,
+            "purchase_date": "2025-07-15"
+        }
+    ],
+    "TCS.NS": [
+        {
+            "purchase_price": 3242.5,
+            "quantity": 4,
+            "purchase_date": "2025-07-15"
+        }
+    ],
+    "TECHM.NS": [
+        {
+            "purchase_price": 1573.7,
+            "quantity": 9,
+            "purchase_date": "2025-07-15"
+        }
     ]
 }
