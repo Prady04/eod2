@@ -31,5 +31,26 @@
             "quantity": 9,
             "purchase_date": "2025-07-15"
         }
+    ],
+    "TITAN.NS": [
+        {
+            "purchase_price": 3417.3,
+            "quantity": 4,
+            "purchase_date": "2025-07-16"
+        }
+    ],
+    "HDFCLIFE.NS": [
+        {
+            "purchase_price": 753.85,
+            "quantity": 19,
+            "purchase_date": "2025-07-17"
+        }
+    ],
+    "AXISBANK.NS": [
+        {
+            "purchase_price": 1106.5,
+            "quantity": 13,
+            "purchase_date": "2025-07-18"
+        }
     ]
 }

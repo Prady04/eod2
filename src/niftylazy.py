@@ -85,7 +85,8 @@ def place_sell_order(symbol, quantity):
     return True
 
 def place_buy_order(symbol, quantity):
-    logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed for ₹15000.")
+    logging.info('bought')
+    #logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed for ₹15000.")
     return True
 
 # Fetch current price of a stock
