@@ -48,9 +48,37 @@
     ],
     "AXISBANK.NS": [
         {
-            "purchase_price": 1106.5,
+            "purchase_price": 1102.6,
             "quantity": 13,
             "purchase_date": "2025-07-18"
+        }
+    ],
+    "BEL.NS": [
+        {
+            "purchase_price": 391.6,
+            "quantity": 38,
+            "purchase_date": "2025-07-21"
+        }
+    ],
+    "RELIANCE.NS": [
+        {
+            "purchase_price": 1427.0,
+            "quantity": 10,
+            "purchase_date": "2025-07-21"
+        }
+    ],
+    "SHRIRAMFIN.NS": [
+        {
+            "purchase_price": 640.0,
+            "quantity": 23,
+            "purchase_date": "2025-07-22"
+        }
+    ],
+    "EICHERMOT.NS": [
+        {
+            "purchase_price": 5443.0,
+            "quantity": 2,
+            "purchase_date": "2025-07-23"
         }
     ]
 }
