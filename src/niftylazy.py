@@ -128,9 +128,9 @@ def check_and_trade():
     if now.weekday() >= 5:  # Saturday (5) or Sunday (6)
         logging.info("Market is closed (weekend). Skipping trade.")
         return
-    if now.hour < 9 or (now.hour == 9 and now.minute < 15) or now.hour > 15 or (now.hour == 15 and now.minute > 30):
+    '''if now.hour < 9 or (now.hour == 9 and now.minute < 15) or now.hour > 15 or (now.hour == 15 and now.minute > 30):
         logging.info("Market is closed (outside trading hours). Skipping trade.")
-        return
+        return'''
     if current_date in NSE_HOLIDAYS:
         logging.info("Market is closed (holiday). Skipping trade.")
         return
