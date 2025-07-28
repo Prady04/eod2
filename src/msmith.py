@@ -326,7 +326,7 @@ def print_on_screen(df):
     try:
         now = datetime.now()
         f = now.strftime("%Y%m%d%S")
-        df.to_csv('prady'+f+'.csv')
+        #df.to_csv('prady'+f+'.csv')
     except Exception as e:
         print(e)
     
@@ -407,7 +407,7 @@ def msmith():
     
     
    
-    if len(df1) > 0:
+    if not df1.empty and (len(df1) > 0):
         df = df1        
         if len(df2)>0:
             df = pd.concat([df,df2]) 

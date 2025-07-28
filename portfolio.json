@@ -87,5 +87,26 @@
             "quantity": 6,
             "purchase_date": "2025-07-25"
         }
+    ],
+    "INFY.NS": [
+        {
+            "purchase_price": 1511.9,
+            "quantity": 9,
+            "purchase_date": "2025-07-25"
+        }
+    ],
+    "KOTAKBANK.NS": [
+        {
+            "purchase_price": 1989.0,
+            "quantity": 7,
+            "purchase_date": "2025-07-28"
+        }
+    ],
+    "INDUSINDBK.NS": [
+        {
+            "purchase_price": 803.85,
+            "quantity": 18,
+            "purchase_date": "2025-07-28"
+        }
     ]
 }
