@@ -8,6 +8,8 @@ import os
 import requests
 import io
 import logging
+from scipy.optimize import newton
+
 
 
 handlers = [logging.FileHandler('./src/trading.log'), logging.StreamHandler()]
@@ -86,15 +88,19 @@ def place_sell_order(symbol, quantity):
 
 def place_buy_order(symbol, quantity):
     logging.info('bought')
-    #logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed for ₹15000.")
+    #logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed for Rs.15000.")
     return True
 
 # Fetch current price of a stock
+price_cache = {}
 def get_current_price(symbol):
+    if symbol in price_cache:
+        return price_cache[symbol]
     try:
         stock = yf.Ticker(symbol)
         price = stock.info.get('regularMarketPrice') or stock.history(period='1d')['Close'][-1]
-        time.sleep(1)  # Avoid yfinance rate limits
+        time.sleep(1)
+        price_cache[symbol] = price
         return price
     except Exception as e:
         logging.error(f"Error fetching price for {symbol}: {e}")
@@ -115,6 +121,170 @@ def get_20_day_ma(symbol):
     except Exception as e:
         logging.error(f"Error calculating 20-day MA for {symbol}: {e}")
         return None
+from datetime import datetime
+
+# Calculate total portfolio size in INR
+def get_total_portfolio_value():
+    total_value = 0
+    for symbol in portfolio:
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in portfolio[symbol]:
+            total_value += entry['quantity'] * current_price
+    logging.info(f"Total Portfolio Value: Rs.{total_value:.2f}")
+    return total_value
+
+# Calculate drawdown per stock and total drawdown
+def get_drawdowns():
+    total_drawdown = 0
+    drawdown_details = {}
+    for symbol in portfolio:
+        symbol_drawdown = 0
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in portfolio[symbol]:
+            purchase_price = entry['purchase_price']
+            quantity = entry['quantity']
+            drawdown = max(0, (purchase_price - current_price) * quantity)
+            symbol_drawdown += drawdown
+        drawdown_details[symbol] = round(symbol_drawdown,2)
+        total_drawdown += symbol_drawdown
+    logging.info(f"Total Drawdown: Rs.{total_drawdown:.2f}")
+    logging.info(f"Drawdown per Stock: {drawdown_details}")
+    return total_drawdown, drawdown_details
+
+# Calculate average holding period in days
+def get_average_holding_period():
+    total_days = 0
+    entry_count = 0
+    today = datetime.now().date()
+    for symbol in portfolio:
+        for entry in portfolio[symbol]:
+            try:
+                purchase_date = datetime.strptime(entry['purchase_date'], '%Y-%m-%d').date()
+                holding_days = (today - purchase_date).days
+                total_days += holding_days
+                entry_count += 1
+            except Exception as e:
+                logging.warning(f"Date parse error: {e}")
+    avg_days = total_days / entry_count if entry_count > 0 else 0
+    logging.info(f"Average Holding Period: {avg_days:.2f} days")
+    return avg_days
+
+import numpy as np
+
+
+# Calculate percentage return and CAGR
+def get_portfolio_returns():
+    total_invested = 0
+    current_value = 0
+    earliest_date = datetime.now().date()
+
+    for symbol in portfolio:
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in portfolio[symbol]:
+            quantity = entry['quantity']
+            purchase_price = entry['purchase_price']
+            purchase_date = datetime.strptime(entry['purchase_date'], '%Y-%m-%d').date()
+            invested = purchase_price * quantity
+            value = current_price * quantity
+
+            total_invested += invested
+            current_value += value
+
+            if purchase_date < earliest_date:
+                earliest_date = purchase_date
+
+    if total_invested == 0:
+        logging.warning("No invested capital to calculate returns.")
+        return
+
+    percent_return = ((current_value - total_invested) / total_invested) * 100
+
+    # CAGR
+    days_held = (datetime.now().date() - earliest_date).days
+    years_held = days_held / 365.0
+    if years_held > 0:
+        cagr = ((current_value / total_invested) ** (1 / years_held) - 1) * 100
+    else:
+        cagr = 0
+
+    logging.info(f"Portfolio % Return: {percent_return:.2f}%")
+    logging.info(f"Portfolio CAGR: {cagr:.2f}%")
+    return percent_return, cagr
+
+
+def xirr(cash_flows):
+    from scipy.optimize import newton
+    from math import isnan
+
+    def npv(rate):
+        if rate <= -1.0:
+            return float('inf')  # invalid: cannot compound at ≤ -100%
+        try:
+            return sum(
+                cf / ((1 + rate) ** ((date - first_date).days / 365))
+                for date, cf in cash_flows
+            )
+        except Exception as e:
+            logging.error(f"Error in NPV calculation: {e}")
+            return float('inf')
+
+    if not cash_flows or len(cash_flows) < 2:
+        logging.warning("Not enough data points to calculate XIRR.")
+        return None
+
+    # Sort by date and extract first date
+    cash_flows = sorted(cash_flows, key=lambda x: x[0])
+    first_date = cash_flows[0][0]
+
+    try:
+        result = newton(npv, 0.1, maxiter=100, tol=1e-6)
+        if isnan(result):
+            raise RuntimeError("XIRR result is NaN")
+        return result
+    except RuntimeError as e:
+        logging.error(f"XIRR calculation did not converge: {e}")
+        return None
+
+def get_portfolio_xirr():
+    cash_flows = []
+
+    for symbol in portfolio:
+        for entry in portfolio[symbol]:
+            date = datetime.strptime(entry['purchase_date'], '%Y-%m-%d').date()
+            amount = -entry['purchase_price'] * entry['quantity']
+            cash_flows.append((date, amount))
+
+    today = datetime.now().date()
+    total_current_value = 0
+
+    for symbol in portfolio:
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in portfolio[symbol]:
+            total_current_value += current_price * entry['quantity']
+
+    if total_current_value > 0:
+        cash_flows.append((today, total_current_value))
+
+    logging.info("XIRR Cash Flows:")
+    for dt, amt in cash_flows:
+        logging.info(f"  {dt} : {amt:.2f}")
+
+    xirr_result = xirr(cash_flows)
+    if xirr_result is not None:
+        logging.info(f"Portfolio XIRR: {xirr_result * 100:.2f}%")
+        return xirr_result * 100
+    else:
+        logging.warning("XIRR could not be calculated.")
+        return None
+
 
 # Trading strategy
 def check_and_trade():
@@ -226,6 +396,12 @@ def check_and_trade():
             logging.error(f"Failed to buy {max_deviation_stock}.")
     else:
         logging.error(f"Cannot buy {max_deviation_stock}: Insufficient funds for even 1 share.")
+
+    get_total_portfolio_value()
+    get_drawdowns()
+    get_average_holding_period()
+    get_portfolio_returns()
+    get_portfolio_xirr()
 
 # Run the trading strategy
 if __name__ == "__main__":

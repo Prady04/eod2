@@ -108,5 +108,61 @@
             "quantity": 18,
             "purchase_date": "2025-07-28"
         }
+    ],
+    "BAJFINANCE.NS": [
+        {
+            "purchase_price": 886.55,
+            "quantity": 16,
+            "purchase_date": "2025-07-30"
+        }
+    ],
+    "BAJAJ-AUTO.NS": [
+        {
+            "purchase_price": 8043.5,
+            "quantity": 1,
+            "purchase_date": "2025-07-30"
+        }
+    ],
+    "ADANIENT.NS": [
+        {
+            "purchase_price": 2487.1,
+            "quantity": 6,
+            "purchase_date": "2025-07-31"
+        }
+    ],
+    "ADANIPORTS.NS": [
+        {
+            "purchase_price": 1373.1,
+            "quantity": 10,
+            "purchase_date": "2025-07-31"
+        }
+    ],
+    "BAJAJFINSV.NS": [
+        {
+            "purchase_price": 1948.0,
+            "quantity": 7,
+            "purchase_date": "2025-07-31"
+        }
+    ],
+    "WIPRO.NS": [
+        {
+            "purchase_price": 248.3,
+            "quantity": 60,
+            "purchase_date": "2025-07-31"
+        }
+    ],
+    "TATAMOTORS.NS": [
+        {
+            "purchase_price": 665.95,
+            "quantity": 22,
+            "purchase_date": "2025-07-31"
+        }
+    ],
+    "COALINDIA.NS": [
+        {
+            "purchase_price": 376.35,
+            "quantity": 39,
+            "purchase_date": "2025-07-31"
+        }
     ]
 }
