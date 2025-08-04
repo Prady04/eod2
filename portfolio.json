@@ -130,39 +130,32 @@
             "purchase_date": "2025-07-31"
         }
     ],
-    "ADANIPORTS.NS": [
+    "SUNPHARMA.NS": [
         {
-            "purchase_price": 1373.1,
-            "quantity": 10,
-            "purchase_date": "2025-07-31"
-        }
-    ],
-    "BAJAJFINSV.NS": [
-        {
-            "purchase_price": 1948.0,
-            "quantity": 7,
-            "purchase_date": "2025-07-31"
-        }
-    ],
-    "WIPRO.NS": [
-        {
-            "purchase_price": 248.3,
-            "quantity": 60,
-            "purchase_date": "2025-07-31"
+            "purchase_price": 1616.5,
+            "quantity": 9,
+            "purchase_date": "2025-08-01"
         }
     ],
     "TATAMOTORS.NS": [
         {
-            "purchase_price": 665.95,
+            "purchase_price": 654.0,
             "quantity": 22,
-            "purchase_date": "2025-07-31"
+            "purchase_date": "2025-08-04"
         }
     ],
-    "COALINDIA.NS": [
+    "BAJAJFINSV.NS": [
         {
-            "purchase_price": 376.35,
-            "quantity": 39,
-            "purchase_date": "2025-07-31"
+            "purchase_price": 1933.6,
+            "quantity": 7,
+            "purchase_date": "2025-08-04"
+        }
+    ],
+    "WIPRO.NS": [
+        {
+            "purchase_price": 246.05,
+            "quantity": 60,
+            "purchase_date": "2025-08-04"
         }
     ]
 }

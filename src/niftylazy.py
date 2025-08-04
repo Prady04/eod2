@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
-import time
+import sqlite3
+from datetime import datetime, timedelta
 import pytz
 import json
 import os
@@ -24,8 +24,7 @@ logging.basicConfig(
 
 # File to store portfolio
 PORTFOLIO_FILE = "portfolio.json"
-
-# URL for Nifty 50 constituents
+DB_FILE = "market_data.db"
 NIFTY50_URL = "https://www.niftyindices.com/IndexConstituent/ind_nifty50list.csv"
 
 # Headers for HTTP request
@@ -39,7 +38,19 @@ NSE_HOLIDAYS = ["2025-10-29", "2025-12-25"]  # Add more holidays
 # Initialize empty portfolio
 portfolio = {}
 
-# Fetch Nifty 50 stock list from URL
+# === DB SETUP ===
+def init_db():
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS price_history (
+            symbol TEXT,
+            date TEXT,
+            close REAL,
+            volume REAL,
+            PRIMARY KEY (symbol, date)
+        )""")
+
+# === NIFTY 50 STOCKS ===
 def fetch_nifty50_stocks():
     try:
         response = requests.get(NIFTY50_URL, headers=HEADERS)
@@ -74,10 +85,43 @@ def load_portfolio():
 
 # Save portfolio to file
 def save_portfolio():
+    with open(PORTFOLIO_FILE, 'w') as f:
+        json.dump(portfolio, f, indent=4)
+
+# === PRICE DATA ===
+def get_last_date(symbol):
+    with sqlite3.connect(DB_FILE) as conn:
+        result = conn.execute("SELECT MAX(date) FROM price_history WHERE symbol = ?", (symbol,)).fetchone()
+        return result[0] if result else None
+
+def fetch_and_store_price_data(symbol, start_date, period):
     try:
-        with open(PORTFOLIO_FILE, 'w') as f:
-            json.dump(portfolio, f, indent=4)
-        logging.info("Portfolio saved to file.")
+        stock = yf.Ticker(symbol)
+
+        if period == '20d':
+            price = stock.history(period=period)
+            price.index = pd.to_datetime(price.index)
+
+            with sqlite3.connect(DB_FILE) as conn:
+                for index, row in price.iterrows():
+                    date_obj = index.to_pydatetime()
+                    conn.execute("""
+                        INSERT OR IGNORE INTO price_history (symbol, date, close, volume)
+                        VALUES (?, ?, ?, ?)""",
+                        (symbol, date_obj.strftime('%Y-%m-%d'), row['Close'], row['Volume'])
+                    )
+
+        else:
+            price = stock.info.get('regularMarketPrice')
+            if not price:
+                price = stock.history(period='1d')['Close'][-1]
+
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.execute("""
+                    INSERT OR IGNORE INTO price_history (symbol, date, close, volume)
+                    VALUES (?, ?, ?, ?)""",
+                    (symbol, datetime.now().strftime('%Y-%m-%d'), price, 0)
+                )
     except Exception as e:
         logging.error(f"Error saving portfolio: {e}")
 
@@ -94,33 +138,25 @@ def place_buy_order(symbol, quantity):
 # Fetch current price of a stock
 price_cache = {}
 def get_current_price(symbol):
-    if symbol in price_cache:
-        return price_cache[symbol]
-    try:
-        stock = yf.Ticker(symbol)
-        price = stock.info.get('regularMarketPrice') or stock.history(period='1d')['Close'][-1]
-        time.sleep(1)
-        price_cache[symbol] = price
-        return price
-    except Exception as e:
-        logging.error(f"Error fetching price for {symbol}: {e}")
-        return None
+    with sqlite3.connect(DB_FILE) as conn:
+        row = conn.execute("SELECT close FROM price_history WHERE symbol = ? ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
+        if row:
+            return row[0]
 
-# Calculate 20-day moving average
+    today = datetime.now().strftime('%Y-%m-%d')
+    fetch_and_store_price_data(symbol, today, '1d')
+    return get_current_price(symbol)
+
 def get_20_day_ma(symbol):
-    try:
-        stock = yf.Ticker(symbol)
-        history = stock.history(period='1mo')  # Fetch 1 month of data
-        if len(history) >= 20:
-            ma_20 = history['Close'].tail(20).mean()
-            time.sleep(1)  # Avoid yfinance rate limits
-            return ma_20
-        else:
-            logging.error(f"Insufficient data for {symbol} to calculate 20-day MA.")
-            return None
-    except Exception as e:
-        logging.error(f"Error calculating 20-day MA for {symbol}: {e}")
-        return None
+    last_date = get_last_date(symbol)
+    today = datetime.now().strftime('%Y-%m-%d')
+    start_date = '2022-01-01' if last_date is None else last_date
+    fetch_and_store_price_data(symbol, start_date, '20d')
+
+    with sqlite3.connect(DB_FILE) as conn:
+        rows = conn.execute("SELECT close FROM price_history WHERE symbol = ? ORDER BY date DESC LIMIT 20", (symbol,)).fetchall()
+        closes = [r[0] for r in rows]
+        return sum(closes) / len(closes) if len(closes) == 20 else None
 from datetime import datetime
 
 # Calculate total portfolio size in INR
@@ -405,4 +441,5 @@ def check_and_trade():
 
 # Run the trading strategy
 if __name__ == "__main__":
+    init_db()
     check_and_trade()
