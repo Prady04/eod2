@@ -183,10 +183,14 @@ def get_drawdowns():
         for entry in portfolio[symbol]:
             purchase_price = entry['purchase_price']
             quantity = entry['quantity']
-            drawdown = max(0, (purchase_price - current_price) * quantity)
+            drawdown =  (current_price - purchase_price) * quantity
             symbol_drawdown += drawdown
         drawdown_details[symbol] = round(symbol_drawdown,2)
         total_drawdown += symbol_drawdown
+    import pprint
+    pp = pprint.PrettyPrinter()
+    pp.pprint(drawdown_details)
+
     logging.info(f"Total Drawdown: Rs.{total_drawdown:.2f}")
     logging.info(f"Drawdown per Stock: {drawdown_details}")
     return total_drawdown, drawdown_details

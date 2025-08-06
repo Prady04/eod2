@@ -130,13 +130,6 @@
             "purchase_date": "2025-07-31"
         }
     ],
-    "SUNPHARMA.NS": [
-        {
-            "purchase_price": 1616.5,
-            "quantity": 9,
-            "purchase_date": "2025-08-01"
-        }
-    ],
     "TATAMOTORS.NS": [
         {
             "purchase_price": 654.0,
@@ -164,5 +157,13 @@
             "quantity": 63,
             "purchase_date": "2025-08-06"
         }
-    ]
+    ],
+    "ADANIPORTS.NS": [
+        {
+            "purchase_price": 1358.0999755859375,
+            "quantity": 11,
+            "purchase_date": "2025-08-06"
+        }
+    ],
+   
 }
