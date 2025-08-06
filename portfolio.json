@@ -157,5 +157,12 @@
             "quantity": 60,
             "purchase_date": "2025-08-04"
         }
+    ],
+    "ONGC.NS": [
+        {
+            "purchase_price": 234.83,
+            "quantity": 63,
+            "purchase_date": "2025-08-06"
+        }
     ]
 }
