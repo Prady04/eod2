@@ -164,6 +164,19 @@
             "quantity": 11,
             "purchase_date": "2025-08-06"
         }
+    ],
+    "SUNPHARMA.NS": [
+        {
+            "purchase_price": 1597.5,
+            "quantity": 9,
+            "purchase_date": "2025-08-07"
+        }
+    ],
+    "DRREDDY.NS": [
+        {
+            "purchase_price": 1201.699951171875,
+            "quantity": 12,
+            "purchase_date": "2025-08-08"
+        }
     ]
-   
 }
