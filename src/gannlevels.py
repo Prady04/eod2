@@ -6,10 +6,10 @@ import os
 
 # 1. Your list of symbols
 symbols = ["^NSEI"]
-
+json_dir = ".\\json_files"
 for sym in symbols:
-    json_file = f"candles_{sym}.json"
-    lvl_file  = f"gann_levels_{sym}.json"
+    json_file = f"{json_dir}\\candles_{sym}.json"
+    lvl_file  = f"{json_dir}\\gann_levels_{sym}.json"
 
     # 2. Load existing candle JSON (if any)
     if os.path.exists(json_file):
@@ -48,7 +48,9 @@ for sym in symbols:
     # 4. Merge old + new, drop any duplicates just in case
     combined = {item['time']: item for item in existing + new_candles}
     candles = [combined[dt] for dt in sorted(combined)]
-
+    import os
+    current_directory = os.getcwd()
+    print(current_directory)
     # 5. Re-write the JSON file
     with open(json_file, "w") as f:
         json.dump(candles, f, indent=2)
@@ -81,7 +83,7 @@ import pytz
 import os
 
 symbol = "^NSEI"
-lvl_file = f"gann_levels_{symbol}.json"
+lvl_file = f"{json_dir}\\gann_levels_{symbol}.json"
 
 # ---- Step 1: Get 1 day of 15-min data ----
 start_date = datetime.now() - timedelta(days=1)
@@ -108,7 +110,7 @@ except Exception:
     pass
 
 # ---- Step 2: Load Gann levels ----
-with open(lvl_file, "r") as f:
+with open(f'{lvl_file}', "r") as f:
     gann_levels = sorted(json.load(f))
 
 # ---- Step 3: Find nearest Gann level to current price ----
@@ -155,7 +157,7 @@ ax.xaxis_date()
 from matplotlib import font_manager as fm
 
 # Load custom font
-prop = fm.FontProperties(fname="poppins.ttf", size=40)
+prop = fm.FontProperties(fname=".\\font\\poppins.ttf", size=40)
 
 # Watermark with custom font
 fig.text(0.5, 0.5, "prady",
@@ -192,7 +194,7 @@ plt.title(f"NIFTY - 15min", fontsize=14)
 plt.tight_layout(rect=[0, 0.03, 1, 0.98])  # leave small bottom margin for footer
 
 # -- Save exported image --
-out_file = "nifty_gann_labels_on_lines.png"
+out_file = ".\\img\\nifty_gann_labels_on_lines.png"
 plt.savefig(out_file, dpi=150, bbox_inches='tight')
 print(f"Saved chart to {out_file}")
 
