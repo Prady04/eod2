@@ -17,7 +17,7 @@ for sym in symbols:
             existing = json.load(f)
         # parse out the last date we have
         last_date = max(item['time'] for item in existing)
-        start_date = datetime.strptime(last_date, "%Y-%m-%d") + timedelta(days=1)
+        start_date = datetime.strptime(last_date, "%Y-%m-%d") + timedelta(days=5)
     else:
         existing = []
         start_date = datetime.now() - timedelta(days=90)  # default look-back
@@ -25,7 +25,7 @@ for sym in symbols:
     # 3. Fetch only from start_date until today
     df = yf.Ticker(sym).history(
         start=start_date.strftime("%Y-%m-%d"),
-        end=(datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        end=(datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
     ).reset_index()
 
     if df.empty:
@@ -86,7 +86,7 @@ symbol = "^NSEI"
 lvl_file = f"{json_dir}\\gann_levels_{symbol}.json"
 
 # ---- Step 1: Get 1 day of 15-min data ----
-start_date = datetime.now() - timedelta(days=1)
+start_date = datetime.now() - timedelta(days=5)
 df = yf.download(symbol,
                  start=start_date.strftime("%Y-%m-%d"),
                  end=(datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),

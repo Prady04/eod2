@@ -178,5 +178,12 @@
             "quantity": 12,
             "purchase_date": "2025-08-08"
         }
+    ],
+    "APOLLOHOSP.NS": [
+        {
+            "purchase_price": 7084.5,
+            "quantity": 2,
+            "purchase_date": "2025-08-12"
+        }
     ]
 }
