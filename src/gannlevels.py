@@ -61,6 +61,7 @@ for sym in symbols:
     #base = min(lows)
     closes =[pt['close'] for pt in candles]
     base=closes[-1]
+    #base =24942.35
     base_sqrt = base ** 0.5
     fracs = [0.125 * i for i in range(1, 9)]
     gann_levels = [(base_sqrt + af)**2 for af in fracs] + [(base_sqrt - af)**2 for af in fracs]

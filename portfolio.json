@@ -1,16 +1,4 @@
 {
-    "TRENT.NS": [
-        {
-            "purchase_price": 5314.5,
-            "quantity": 2,
-            "purchase_date": "2025-07-14"
-        },
-        {
-            "purchase_price": 5361.5,
-            "quantity": 2,
-            "purchase_date": "2025-07-15"
-        }
-    ],
     "HCLTECH.NS": [
         {
             "purchase_price": 1573.2,
@@ -39,13 +27,6 @@
             "purchase_date": "2025-07-16"
         }
     ],
-    "HDFCLIFE.NS": [
-        {
-            "purchase_price": 753.85,
-            "quantity": 19,
-            "purchase_date": "2025-07-17"
-        }
-    ],
     "AXISBANK.NS": [
         {
             "purchase_price": 1102.6,
@@ -72,13 +53,6 @@
             "purchase_price": 640.0,
             "quantity": 23,
             "purchase_date": "2025-07-22"
-        }
-    ],
-    "EICHERMOT.NS": [
-        {
-            "purchase_price": 5443.0,
-            "quantity": 2,
-            "purchase_date": "2025-07-23"
         }
     ],
     "NESTLEIND.NS": [
@@ -113,13 +87,6 @@
         {
             "purchase_price": 886.55,
             "quantity": 16,
-            "purchase_date": "2025-07-30"
-        }
-    ],
-    "BAJAJ-AUTO.NS": [
-        {
-            "purchase_price": 8043.5,
-            "quantity": 1,
             "purchase_date": "2025-07-30"
         }
     ],
@@ -172,18 +139,11 @@
             "purchase_date": "2025-08-07"
         }
     ],
-    "DRREDDY.NS": [
+    "TATASTEEL.NS": [
         {
-            "purchase_price": 1201.699951171875,
-            "quantity": 12,
-            "purchase_date": "2025-08-08"
-        }
-    ],
-    "APOLLOHOSP.NS": [
-        {
-            "purchase_price": 7084.5,
-            "quantity": 2,
-            "purchase_date": "2025-08-12"
+            "purchase_price": 157.22999572753906,
+            "quantity": 95,
+            "purchase_date": "2025-08-18"
         }
     ]
 }
