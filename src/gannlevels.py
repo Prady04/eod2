@@ -195,8 +195,8 @@ plt.title(f"NIFTY - 15min", fontsize=14)
 plt.tight_layout(rect=[0, 0.03, 1, 0.98])  # leave small bottom margin for footer
 
 # -- Save exported image --
-out_file = ".\\img\\nifty_gann_labels_on_lines.png"
+out_file = "C:\\temp\\img\\nifty"+ datetime.now().strftime("%d%m%Y%H%M")+".jpg"
 plt.savefig(out_file, dpi=150, bbox_inches='tight')
 print(f"Saved chart to {out_file}")
 
-plt.show()
+#plt.show()

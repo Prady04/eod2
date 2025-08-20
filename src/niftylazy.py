@@ -183,6 +183,221 @@ def get_current_price(symbol, avoidCache=False):
             if row:
                 return row[0]
 
+from collections import defaultdict
+import numpy_financial as npf  # requires `pip install numpy-financial`
+
+# === PORTFOLIO ANALYTICS ===
+
+def get_total_portfolio_value():
+    """Current total market value of portfolio."""
+    load_portfolio()
+    total_value = 0.0
+    for symbol, entries in portfolio.items():
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in entries:
+            total_value += entry['quantity'] * current_price
+    return total_value
+
+
+def get_drawdowns(symbol=None):
+    """
+    Compute drawdowns based on daily mark-to-market portfolio value.
+    If symbol is passed, restrict to that stock only.
+    """
+    load_portfolio()
+    with sqlite3.connect(DB_FILE) as conn:
+        if symbol:
+            rows = conn.execute(
+                "SELECT date, close FROM price_history WHERE symbol = ? ORDER BY date",
+                (symbol,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT date, SUM(close) FROM price_history GROUP BY date ORDER BY date"
+            ).fetchall()
+
+    if not rows:
+        return []
+
+    values = [r[1] for r in rows]
+    peak = values[0]
+    drawdowns = []
+    for v in values:
+        peak = max(peak, v)
+        dd = (v - peak) / peak
+        drawdowns.append(dd)
+    return drawdowns
+
+
+def get_average_holding_period():
+    """Average days held for exited positions."""
+    if not os.path.exists("exits.json"):
+        return 0
+    with open("exits.json", "r") as f:
+        exits = json.load(f)
+
+    days = []
+    for e in exits:
+        buy_date = datetime.strptime(e["purchase_date"], "%Y-%m-%d")
+        sell_date = datetime.strptime(e["sell_date"], "%Y-%m-%d")
+        days.append((sell_date - buy_date).days)
+    return sum(days) / len(days) if days else 0
+
+
+def get_portfolio_returns():
+    """Simple cumulative return and annualized return."""
+    load_portfolio()
+    invested = 0.0
+    current_val = 0.0
+    for symbol, entries in portfolio.items():
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for entry in entries:
+            invested += entry["quantity"] * entry["purchase_price"]
+            current_val += entry["quantity"] * current_price
+
+    if invested == 0:
+        return 0, 0
+    cum_return = (current_val - invested) / invested
+    ann_return = (1 + cum_return) ** (365/ max(1, len(portfolio))) - 1
+    return cum_return, ann_return
+
+def xnpv(rate, cashflows):
+    """
+    Compute NPV for irregular cashflows.
+    cashflows: list of (date, value)
+    """
+    t0 = min(cf[0] for cf in cashflows)
+    return sum(
+        cf[1] / ((1 + rate) ** ((cf[0] - t0).days / 365.0))
+        for cf in cashflows
+    )
+
+def get_portfolio_xirr():
+    """Compute XIRR using Newton's method."""
+    cashflows = []
+
+    # buys
+    load_portfolio()
+    if os.path.exists("exits.json"):
+        with open("exits.json", "r") as f:
+            exits = json.load(f)
+    else:
+        exits = []
+
+    for symbol, entries in portfolio.items():
+        for e in entries:
+            cashflows.append((datetime.strptime(e["purchase_date"], "%Y-%m-%d"),
+                              -e["quantity"] * e["purchase_price"]))
+
+    for e in exits:
+        cashflows.append((datetime.strptime(e["sell_date"], "%Y-%m-%d"),
+                          e["quantity"] * e["sell_price"]))
+
+    if not cashflows:
+        return 0.0
+
+    # try Newton’s method
+    try:
+        result = newton(
+            lambda r: xnpv(r, cashflows),
+            0.1  # initial guess 10%
+        )
+        return result
+    except Exception as e:
+        logging.error(f"XIRR calculation failed: {e}")
+        return 0.0
+
+
+# === BACKDATED EXIT HANDLING ===
+def sell_from_portfolio_backdated(symbol, quantity_to_sell, sell_price, sell_date):
+    """
+    Sell with a specific backdated sell_date.
+    Records in exits.json for analytics.
+    """
+    load_portfolio()
+    if symbol not in portfolio:
+        logging.warning(f"Tried to sell {symbol} but not in portfolio.")
+        return False
+
+    exits = []
+    if os.path.exists("exits.json"):
+        with open("exits.json", "r") as f:
+            exits = json.load(f)
+
+    remaining = quantity_to_sell
+    updated_entries = []
+
+    for entry in portfolio[symbol]:
+        if remaining <= 0:
+            updated_entries.append(entry)
+            continue
+
+        if entry["quantity"] <= remaining:
+            exits.append({
+                "symbol": symbol,
+                "quantity": entry["quantity"],
+                "purchase_price": entry["purchase_price"],
+                "purchase_date": entry["purchase_date"],
+                "sell_price": sell_price,
+                "sell_date": sell_date
+            })
+            remaining -= entry["quantity"]
+        else:
+            exits.append({
+                "symbol": symbol,
+                "quantity": remaining,
+                "purchase_price": entry["purchase_price"],
+                "purchase_date": entry["purchase_date"],
+                "sell_price": sell_price,
+                "sell_date": sell_date
+            })
+            entry["quantity"] -= remaining
+            remaining = 0
+            updated_entries.append(entry)
+
+    if updated_entries:
+        portfolio[symbol] = updated_entries
+    else:
+        del portfolio[symbol]
+
+    save_portfolio()
+    with open("exits.json", "w") as f:
+        json.dump(exits, f, indent=4)
+
+    return True
+def get_booked_profit():
+    """Return total realized (booked) profit from exited trades."""
+    if not os.path.exists("exits.json"):
+        return 0.0
+
+    with open("exits.json", "r") as f:
+        exits = json.load(f)
+
+    profit = 0.0
+    for e in exits:
+        buy_val = e["purchase_price"] * e["quantity"]
+        sell_val = e["sell_price"] * e["quantity"]
+        profit += (sell_val - buy_val)
+    return profit
+
+
+def get_mtm_unrealized():
+    """Return current unrealized mark-to-market P&L for open positions."""
+    load_portfolio()
+    mtm = 0.0
+    for symbol, entries in portfolio.items():
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for e in entries:
+            buy_val = e["purchase_price"] * e["quantity"]
+            current_val = current_price * e["quantity"]
+            mtm += (current_val - buy_val)
+    return mtm
 
 def get_20_day_ma(symbol):
     last_date = get_last_date(symbol)
@@ -248,7 +463,8 @@ def check_and_trade():
     for symbol, current_price, gain_percent in max_gain_stocks:
         quantity = sum(entry['quantity'] for entry in portfolio[symbol])
         if place_sell_order(symbol, quantity):
-            sell_from_portfolio(symbol, quantity, current_price)
+            # Backdated sell with current date
+            sell_from_portfolio_backdated(symbol, quantity, current_price, current_date)
             logging.info(f"Sold {quantity} shares of {symbol} with {gain_percent:.2f}% gain.")
         else:
             logging.error(f"Failed to sell {symbol}.")
@@ -267,21 +483,42 @@ def check_and_trade():
 
     if not deviation_list:
         logging.info("No eligible stocks for buying.")
-        return
-
-    deviation_list.sort(key=lambda x: x[1])
-    max_deviation_stock, deviation, current_price = deviation_list[0]
-
-    # Step 5: Buy stock
-    quantity = int(15000 / current_price)
-    if quantity > 0:
-        if place_buy_order(max_deviation_stock, quantity):
-            add_to_portfolio(max_deviation_stock, current_price, quantity, current_date)
-            logging.info(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
-        else:
-            logging.error(f"Failed to buy {max_deviation_stock}.")
     else:
-        logging.error(f"Cannot buy {max_deviation_stock}: insufficient funds.")
+        deviation_list.sort(key=lambda x: x[1])
+        max_deviation_stock, deviation, current_price = deviation_list[0]
+
+        # Step 5: Buy stock
+        quantity = int(15000 / current_price)
+        if quantity > 0:
+            if place_buy_order(max_deviation_stock, quantity):
+                add_to_portfolio(max_deviation_stock, current_price, quantity, current_date)
+                logging.info(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
+            else:
+                logging.error(f"Failed to buy {max_deviation_stock}.")
+        else:
+            logging.error(f"Cannot buy {max_deviation_stock}: insufficient funds.")
+
+    # === PORTFOLIO ANALYTICS LOGGING ===
+    try:
+        total_value = get_total_portfolio_value()
+        drawdowns = get_drawdowns()
+        avg_holding = get_average_holding_period()
+        cum_ret, ann_ret = get_portfolio_returns()
+        xirr_val = get_portfolio_xirr()
+        booked_pnl = get_booked_profit()
+        mtm_pnl = get_mtm_unrealized()
+
+        logging.info("=== PORTFOLIO STATS ===")
+        logging.info(f"Total Portfolio Value: INR {total_value:,.2f}")
+        logging.info(f"Booked Profit (Realized): {booked_pnl:,.2f}")
+        logging.info(f"Unrealized P&L (MTM): {mtm_pnl:,.2f}")
+        if drawdowns:
+            logging.info(f"Max Drawdown: {min(drawdowns)*100:.2f}%")
+        logging.info(f"Average Holding Period (days): {avg_holding:.1f}")
+        logging.info(f"Cumulative Return: {cum_ret*100:.2f}% | Annualized: {ann_ret*100:.2f}%")
+        logging.info(f"XIRR: {xirr_val*100:.2f}%")
+    except Exception as e:
+        logging.error(f"Error computing portfolio analytics: {e}")
 
 if __name__ == "__main__":
     init_db()
