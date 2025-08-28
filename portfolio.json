@@ -20,13 +20,6 @@
             "purchase_date": "2025-07-15"
         }
     ],
-    "TITAN.NS": [
-        {
-            "purchase_price": 3417.3,
-            "quantity": 4,
-            "purchase_date": "2025-07-16"
-        }
-    ],
     "AXISBANK.NS": [
         {
             "purchase_price": 1102.6,
@@ -151,6 +144,41 @@
             "purchase_price": 409.1000061035156,
             "quantity": 36,
             "purchase_date": "2025-08-20"
+        }
+    ],
+    "HDFCBANK.NS": [
+        {
+            "purchase_price": 1991.0999755859375,
+            "quantity": 7,
+            "purchase_date": "2025-08-21"
+        }
+    ],
+    "POWERGRID.NS": [
+        {
+            "purchase_price": 288.0,
+            "quantity": 52,
+            "purchase_date": "2025-08-21"
+        }
+    ],
+    "LT.NS": [
+        {
+            "purchase_price": 3596.10009765625,
+            "quantity": 4,
+            "purchase_date": "2025-08-22"
+        }
+    ],
+    "JIOFIN.NS": [
+        {
+            "purchase_price": 323.5,
+            "quantity": 46,
+            "purchase_date": "2025-08-22"
+        }
+    ],
+    "COALINDIA.NS": [
+        {
+            "purchase_price": 378.75,
+            "quantity": 39,
+            "purchase_date": "2025-08-25"
         }
     ]
 }

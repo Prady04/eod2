@@ -116,6 +116,7 @@ with open(f'{lvl_file}', "r") as f:
 
 # ---- Step 3: Find nearest Gann level to current price ----
 last_close = df['Close'].iloc[-1]
+#last_close = 24907.3
 closest_level = min(gann_levels, key=lambda x: abs(x - last_close))
 
 # ---- Step 4: Determine realistic Y-axis limits from data + 2 extra levels ----
