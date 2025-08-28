@@ -192,6 +192,8 @@ def get_total_portfolio_value():
     """Current total market value of portfolio."""
     load_portfolio()
     total_value = 0.0
+    totalsymbols = len(portfolio.keys())
+    purchasevalue = totalsymbols*15000
     for symbol, entries in portfolio.items():
         current_price = get_current_price(symbol)
         if current_price is None:
@@ -245,12 +247,44 @@ def get_average_holding_period():
         days.append((sell_date - buy_date).days)
     return sum(days) / len(days) if days else 0
 
+def get_total_invested():
+    invested = 0.0
+    load_portfolio()
+    for symbol, entries in portfolio.items():
+        for e in entries:
+            invested += e["purchase_price"] * e["quantity"]
+
+    if os.path.exists("exits.json"):
+        with open("exits.json", "r") as f:
+            exits = json.load(f)
+        for e in exits:
+            invested += e["purchase_price"] * e["quantity"]
+
+    return invested
+
+def get_mtm_unrealized():
+    load_portfolio()
+    mtm = 0.0
+    for symbol, entries in portfolio.items():
+        current_price = get_current_price(symbol)
+        if current_price is None:
+            continue
+        for e in entries:
+            mtm += (current_price - e["purchase_price"]) * e["quantity"]
+    return mtm
 
 def get_portfolio_returns():
-    """Simple cumulative return and annualized return."""
+    """
+    Compute cumulative and annualized return considering both
+    open positions and realized exits.
+    """
     load_portfolio()
+
     invested = 0.0
     current_val = 0.0
+    earliest_date = None
+
+    # Open positions
     for symbol, entries in portfolio.items():
         current_price = get_current_price(symbol)
         if current_price is None:
@@ -259,11 +293,37 @@ def get_portfolio_returns():
             invested += entry["quantity"] * entry["purchase_price"]
             current_val += entry["quantity"] * current_price
 
+            d = datetime.strptime(entry["purchase_date"], "%Y-%m-%d")
+            if earliest_date is None or d < earliest_date:
+                earliest_date = d
+
+    # Exited trades
+    realized = 0.0
+    if os.path.exists("exits.json"):
+        with open("exits.json", "r") as f:
+            exits = json.load(f)
+
+        for e in exits:
+            invested += e["quantity"] * e["purchase_price"]
+            realized += e["quantity"] * e["sell_price"]
+
+            d = datetime.strptime(e["purchase_date"], "%Y-%m-%d")
+            if earliest_date is None or d < earliest_date:
+                earliest_date = d
+
     if invested == 0:
-        return 0, 0
-    cum_return = (current_val - invested) / invested
-    ann_return = (1 + cum_return) ** (365/ max(1, len(portfolio))) - 1
+        return 0.0, 0.0
+
+    total_val = current_val + realized
+    cum_return = (total_val - invested) / invested
+
+    # Annualize based on holding period
+    today = datetime.now()
+    holding_days = max((today - earliest_date).days, 1) if earliest_date else 1
+    ann_return = (1 + cum_return) ** (365 / holding_days) - 1
+
     return cum_return, ann_return
+
 
 def xnpv(rate, cashflows):
     """
@@ -385,7 +445,7 @@ def get_booked_profit():
     return profit
 
 
-def get_mtm_unrealized():
+'''def get_mtm_unrealized():
     """Return current unrealized mark-to-market P&L for open positions."""
     load_portfolio()
     mtm = 0.0
@@ -397,7 +457,7 @@ def get_mtm_unrealized():
             buy_val = e["purchase_price"] * e["quantity"]
             current_val = current_price * e["quantity"]
             mtm += (current_val - buy_val)
-    return mtm
+    return mtm'''
 
 def get_20_day_ma(symbol):
     last_date = get_last_date(symbol)
@@ -447,7 +507,7 @@ def check_and_trade():
 
     for symbol in portfolio:
         for i, entry in enumerate(portfolio[symbol]):
-            purchase_price = entry['purchase_price']
+            purchase_price = entry['purchase_price']          
             current_price = get_current_price(symbol, True)
             if current_price is None:
                 continue
@@ -500,6 +560,19 @@ def check_and_trade():
 
     # === PORTFOLIO ANALYTICS LOGGING ===
     try:
+
+        invested_total = get_total_invested()
+        current_value = get_total_portfolio_value()
+        booked_pnl = get_booked_profit()
+        mtm_pnl = get_mtm_unrealized()
+
+        logging.info(f"Total Portfolio Value (Open): {current_value:,.2f}")
+        logging.info(f"Total Invested Value: {invested_total:,.2f}")
+        logging.info(f"Booked Profit (Realized): {booked_pnl:,.2f}")
+        logging.info(f"Unrealized P&L (MTM): {mtm_pnl:,.2f}")
+
+        # Reconciliation check
+        logging.info(f"Check: Invested + Booked + MTM = {invested_total + booked_pnl + mtm_pnl:,.2f}")
         total_value = get_total_portfolio_value()
         drawdowns = get_drawdowns()
         avg_holding = get_average_holding_period()
@@ -510,6 +583,7 @@ def check_and_trade():
 
         logging.info("=== PORTFOLIO STATS ===")
         logging.info(f"Total Portfolio Value: INR {total_value:,.2f}")
+        
         logging.info(f"Booked Profit (Realized): {booked_pnl:,.2f}")
         logging.info(f"Unrealized P&L (MTM): {mtm_pnl:,.2f}")
         if drawdowns:
@@ -519,7 +593,65 @@ def check_and_trade():
         logging.info(f"XIRR: {xirr_val*100:.2f}%")
     except Exception as e:
         logging.error(f"Error computing portfolio analytics: {e}")
+import argparse
 
+def apply_split(symbol, ratio):
+    """
+    Apply stock split. Example ratio = 2 means 1:2 split.
+    """
+    load_portfolio()
+    if symbol not in portfolio:
+        logging.error(f"{symbol} not in portfolio. Cannot apply split.")
+        return
+
+    for entry in portfolio[symbol]:
+        entry["quantity"] *= ratio
+        entry["purchase_price"] /= ratio
+
+    save_portfolio()
+    logging.info(f"Applied {ratio}-for-1 split on {symbol}.")
+
+def apply_bonus(symbol, bonus_ratio):
+    """
+    Apply bonus issue. Example '1:1' gives equal new shares.
+    """
+    load_portfolio()
+    if symbol not in portfolio:
+        logging.error(f"{symbol} not in portfolio. Cannot apply bonus.")
+        return
+
+    try:
+        give, get = map(int, bonus_ratio.split(":"))
+    except:
+        logging.error("Invalid bonus ratio format. Use X:Y, e.g., 1:1 or 2:5")
+        return
+
+    for entry in portfolio[symbol]:
+        extra = entry["quantity"] * give // get
+        entry["quantity"] += extra
+        # purchase price stays the same
+
+    save_portfolio()
+    logging.info(f"Applied {bonus_ratio} bonus on {symbol}.")
+
+# === MAIN ENTRY ===
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", nargs=2, metavar=("SYMBOL", "RATIO"),
+                        help="Apply stock split (e.g., RELIANCE.NS 2)")
+    parser.add_argument("--bonus", nargs=2, metavar=("SYMBOL", "RATIO"),
+                        help="Apply bonus (e.g., TCS.NS 1:1)")
+    args = parser.parse_args()
+
+    
+
+    if args.split:
+        symbol, ratio = args.split
+        apply_split(symbol, int(ratio))
+    elif args.bonus:
+        symbol, ratio = args.bonus
+        apply_bonus(symbol, ratio)
+
     init_db()
     check_and_trade()
+

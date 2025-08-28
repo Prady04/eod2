@@ -148,8 +148,8 @@
     ],
     "HDFCBANK.NS": [
         {
-            "purchase_price": 1991.0999755859375,
-            "quantity": 7,
+            "purchase_price": 995.5499877929688,
+            "quantity": 14,
             "purchase_date": "2025-08-21"
         }
     ],
@@ -181,4 +181,5 @@
             "purchase_date": "2025-08-25"
         }
     ]
+   
 }
