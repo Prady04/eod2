@@ -1,0 +1,3 @@
+$NOQUOTES 1
+$SKIPLINES 1
+$FORMAT TICKER,FullName,Alias,Country,Address,EPS,EPSEstCurrentYear,EPSEstNextYear,EPSEstNextQuarter,PEGRatio,SharesFloat,SharesOut,DividendPayDate,ExDividendDate,BookValuePerShare,DividendPerShare,ProfitMargin,OperatingMargin,OneYearTargetPrice,ReturnOnAssets,ReturnOnEquity,QtrlyRevenueGrowth,GrossProfitPerShare,SalesPerShare,EBITDAPerShare,QtrlyEarningsGrowth,InsiderHoldPercent,InstitutionHoldPercent,SharesShort,SharesShortPrevMonth,ForwardDividendPerShare,ForwardEPS,OperatingCashFlow,LeveredFreeCashFlow,Beta,LastSplitRatio,LastSplitDate,DelistingDate,PointValue

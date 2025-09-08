@@ -1,40 +1,45 @@
-import yfinance as yf
 import pandas as pd
 import sqlite3
 from datetime import datetime, timedelta
 import pytz
-import json
-import os
+import json, os
+from tabulate import tabulate
+import argparse
+
 import requests
 import io
 import logging
 from scipy.optimize import newton
+import statistics
 
-handlers = [logging.FileHandler('./src/trading.log'), logging.StreamHandler()]
-# Set up logging
+# Logging handlers (file + console)
+handlers = []
+try:
+    handlers = [logging.FileHandler('./src/trading.log'), logging.StreamHandler()]
+except Exception:
+    handlers = [logging.StreamHandler()]
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=handlers
 )
 
-# File to store portfolio
 PORTFOLIO_FILE = "portfolio.json"
 DB_FILE = "market_data.db"
 NIFTY50_URL = "https://www.niftyindices.com/IndexConstituent/ind_nifty50list.csv"
 
-# Headers for HTTP request
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
 }
 
-# NSE holidays (example list, update as needed)
-NSE_HOLIDAYS = ["2025-10-29", "2025-12-25"]  # Add more holidays
+# example holidays
+NSE_HOLIDAYS = ["2025-10-29", "2025-12-25"]
 
-# Initialize empty portfolio
 portfolio = {}
 
 # === DB SETUP ===
+
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute("""
@@ -47,41 +52,41 @@ def init_db():
         )""")
 
 # === NIFTY 50 STOCKS ===
+
 def fetch_nifty50_stocks():
     try:
-        response = requests.get(NIFTY50_URL, headers=HEADERS)
+        response = requests.get(NIFTY50_URL, headers=HEADERS, timeout=10)
         response.raise_for_status()
         csv_data = io.StringIO(response.text)
         df = pd.read_csv(csv_data)
         if 'Symbol' not in df.columns:
-            logging.error("Error: 'Symbol' column not found in CSV.")
+            logging.error("Nifty CSV did not contain 'Symbol' column")
             return []
-        # Append .NS to symbols for Yahoo Finance compatibility
-        nifty50_stocks = [symbol + ".NS" for symbol in df['Symbol']]
-        logging.info(f"Fetched {len(nifty50_stocks)} Nifty 50 stocks.")
-        return nifty50_stocks
+        return [s.strip() + ".NS" for s in df['Symbol'].astype(str)]
     except Exception as e:
-        logging.error(f"Error fetching Nifty 50 list: {e}")
+        logging.warning(f"Could not fetch Nifty50 list: {e}")
         return []
 
 # === PORTFOLIO HANDLING ===
+
 def load_portfolio():
     global portfolio
     if os.path.exists(PORTFOLIO_FILE):
         try:
             with open(PORTFOLIO_FILE, 'r') as f:
                 portfolio = json.load(f)
-            logging.info("Portfolio loaded from file.")
         except Exception as e:
-            logging.error(f"Error loading portfolio: {e}")
+            logging.error(f"Error reading portfolio file: {e}")
             portfolio = {}
     else:
         portfolio = {}
     return portfolio
 
+
 def save_portfolio():
     with open(PORTFOLIO_FILE, 'w') as f:
         json.dump(portfolio, f, indent=4)
+
 
 def add_to_portfolio(symbol, purchase_price, quantity, purchase_date):
     load_portfolio()
@@ -94,328 +99,75 @@ def add_to_portfolio(symbol, purchase_price, quantity, purchase_date):
     })
     save_portfolio()
 
+
 def sell_from_portfolio(symbol, quantity_to_sell, sell_price):
     load_portfolio()
     if symbol not in portfolio:
-        logging.warning(f"Tried to sell {symbol} but not in portfolio.")
+        logging.warning(f"Tried to sell {symbol} but it's not in portfolio")
         return False
 
     remaining = quantity_to_sell
-    updated_entries = []
-
+    updated = []
     for entry in portfolio[symbol]:
         if remaining <= 0:
-            updated_entries.append(entry)
+            updated.append(entry)
             continue
-
-        if entry["quantity"] <= remaining:
-            logging.info(f"Selling {entry['quantity']} shares of {symbol} bought at {entry['purchase_price']}")
-            remaining -= entry["quantity"]
+        if entry['quantity'] <= remaining:
+            remaining -= entry['quantity']
+            # drop this entry (sold fully)
         else:
-            logging.info(f"Selling {remaining} shares of {symbol} bought at {entry['purchase_price']}")
-            entry["quantity"] -= remaining
+            entry['quantity'] -= remaining
             remaining = 0
-            updated_entries.append(entry)
+            updated.append(entry)
 
-    if updated_entries:
-        portfolio[symbol] = updated_entries
+    if updated:
+        portfolio[symbol] = updated
     else:
-        del portfolio[symbol]  # remove symbol completely if no shares left
-
+        del portfolio[symbol]
     save_portfolio()
     return True
 
-# === PRICE DATA ===
-def get_last_date(symbol):
-    with sqlite3.connect(DB_FILE) as conn:
-        result = conn.execute("SELECT MAX(date) FROM price_history WHERE symbol = ?", (symbol,)).fetchone()
-        return result[0] if result else None
-
-def fetch_and_store_price_data(symbol, start_date, period):
-    try:
-        stock = yf.Ticker(symbol)
-
-        if period == '20d':
-            price = stock.history(period=period)
-            price.index = pd.to_datetime(price.index)
-
-            with sqlite3.connect(DB_FILE) as conn:
-                for index, row in price.iterrows():
-                    date_obj = index.to_pydatetime()
-                    conn.execute("""
-                        INSERT OR IGNORE INTO price_history (symbol, date, close, volume)
-                        VALUES (?, ?, ?, ?)""",
-                        (symbol, date_obj.strftime('%Y-%m-%d'), row['Close'], row['Volume'])
-                    )
-
-        else:
-            price = stock.info.get('regularMarketPrice')
-            if not price:
-                price = stock.history(period='1d')['Close'][-1]
-
-            with sqlite3.connect(DB_FILE) as conn:
-                conn.execute("""
-                    INSERT OR IGNORE INTO price_history (symbol, date, close, volume)
-                    VALUES (?, ?, ?, ?)""",
-                    (symbol, datetime.now().strftime('%Y-%m-%d'), price, 0)
-                )
-    except Exception as e:
-        logging.error(f"Error saving portfolio: {e}")
-
-# === TRADING API PLACEHOLDERS ===
-def place_sell_order(symbol, quantity):
-    logging.info(f"SELL ORDER: {quantity} shares of {symbol} executed.")
-    return True
-
-def place_buy_order(symbol, quantity):
-    logging.info(f"BUY ORDER: {quantity} shares of {symbol} executed.")
-    return True
-
-# === PRICE HELPERS ===
-def get_current_price(symbol, avoidCache=False):
-    if avoidCache:
-        today = datetime.now().strftime('%Y-%m-%d')
-        fetch_and_store_price_data(symbol, today, '1d')
-        return get_current_price(symbol)
-    else:
-        with sqlite3.connect(DB_FILE) as conn:
-            row = conn.execute("SELECT close FROM price_history WHERE symbol = ? ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
-            if row:
-                return row[0]
-
-from collections import defaultdict
-import numpy_financial as npf  # requires `pip install numpy-financial`
-
-# === PORTFOLIO ANALYTICS ===
-
-def get_total_portfolio_value():
-    """Current total market value of portfolio."""
-    load_portfolio()
-    total_value = 0.0
-    totalsymbols = len(portfolio.keys())
-    purchasevalue = totalsymbols*15000
-    for symbol, entries in portfolio.items():
-        current_price = get_current_price(symbol)
-        if current_price is None:
-            continue
-        for entry in entries:
-            total_value += entry['quantity'] * current_price
-    return total_value
-
-
-def get_drawdowns(symbol=None):
-    """
-    Compute drawdowns based on daily mark-to-market portfolio value.
-    If symbol is passed, restrict to that stock only.
-    """
-    load_portfolio()
-    with sqlite3.connect(DB_FILE) as conn:
-        if symbol:
-            rows = conn.execute(
-                "SELECT date, close FROM price_history WHERE symbol = ? ORDER BY date",
-                (symbol,)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT date, SUM(close) FROM price_history GROUP BY date ORDER BY date"
-            ).fetchall()
-
-    if not rows:
-        return []
-
-    values = [r[1] for r in rows]
-    peak = values[0]
-    drawdowns = []
-    for v in values:
-        peak = max(peak, v)
-        dd = (v - peak) / peak
-        drawdowns.append(dd)
-    return drawdowns
-
-
-def get_average_holding_period():
-    """Average days held for exited positions."""
-    if not os.path.exists("exits.json"):
-        return 0
-    with open("exits.json", "r") as f:
-        exits = json.load(f)
-
-    days = []
-    for e in exits:
-        buy_date = datetime.strptime(e["purchase_date"], "%Y-%m-%d")
-        sell_date = datetime.strptime(e["sell_date"], "%Y-%m-%d")
-        days.append((sell_date - buy_date).days)
-    return sum(days) / len(days) if days else 0
-
-def get_total_invested():
-    invested = 0.0
-    load_portfolio()
-    for symbol, entries in portfolio.items():
-        for e in entries:
-            invested += e["purchase_price"] * e["quantity"]
-
-    if os.path.exists("exits.json"):
-        with open("exits.json", "r") as f:
-            exits = json.load(f)
-        for e in exits:
-            invested += e["purchase_price"] * e["quantity"]
-
-    return invested
-
-def get_mtm_unrealized():
-    load_portfolio()
-    mtm = 0.0
-    for symbol, entries in portfolio.items():
-        current_price = get_current_price(symbol)
-        if current_price is None:
-            continue
-        for e in entries:
-            mtm += (current_price - e["purchase_price"]) * e["quantity"]
-    return mtm
-
-def get_portfolio_returns():
-    """
-    Compute cumulative and annualized return considering both
-    open positions and realized exits.
-    """
-    load_portfolio()
-
-    invested = 0.0
-    current_val = 0.0
-    earliest_date = None
-
-    # Open positions
-    for symbol, entries in portfolio.items():
-        current_price = get_current_price(symbol)
-        if current_price is None:
-            continue
-        for entry in entries:
-            invested += entry["quantity"] * entry["purchase_price"]
-            current_val += entry["quantity"] * current_price
-
-            d = datetime.strptime(entry["purchase_date"], "%Y-%m-%d")
-            if earliest_date is None or d < earliest_date:
-                earliest_date = d
-
-    # Exited trades
-    realized = 0.0
-    if os.path.exists("exits.json"):
-        with open("exits.json", "r") as f:
-            exits = json.load(f)
-
-        for e in exits:
-            invested += e["quantity"] * e["purchase_price"]
-            realized += e["quantity"] * e["sell_price"]
-
-            d = datetime.strptime(e["purchase_date"], "%Y-%m-%d")
-            if earliest_date is None or d < earliest_date:
-                earliest_date = d
-
-    if invested == 0:
-        return 0.0, 0.0
-
-    total_val = current_val + realized
-    cum_return = (total_val - invested) / invested
-
-    # Annualize based on holding period
-    today = datetime.now()
-    holding_days = max((today - earliest_date).days, 1) if earliest_date else 1
-    ann_return = (1 + cum_return) ** (365 / holding_days) - 1
-
-    return cum_return, ann_return
-
-
-def xnpv(rate, cashflows):
-    """
-    Compute NPV for irregular cashflows.
-    cashflows: list of (date, value)
-    """
-    t0 = min(cf[0] for cf in cashflows)
-    return sum(
-        cf[1] / ((1 + rate) ** ((cf[0] - t0).days / 365.0))
-        for cf in cashflows
-    )
-
-def get_portfolio_xirr():
-    """Compute XIRR using Newton's method."""
-    cashflows = []
-
-    # buys
-    load_portfolio()
-    if os.path.exists("exits.json"):
-        with open("exits.json", "r") as f:
-            exits = json.load(f)
-    else:
-        exits = []
-
-    for symbol, entries in portfolio.items():
-        for e in entries:
-            cashflows.append((datetime.strptime(e["purchase_date"], "%Y-%m-%d"),
-                              -e["quantity"] * e["purchase_price"]))
-
-    for e in exits:
-        cashflows.append((datetime.strptime(e["sell_date"], "%Y-%m-%d"),
-                          e["quantity"] * e["sell_price"]))
-
-    if not cashflows:
-        return 0.0
-
-    # try Newton’s method
-    try:
-        result = newton(
-            lambda r: xnpv(r, cashflows),
-            0.1  # initial guess 10%
-        )
-        return result
-    except Exception as e:
-        logging.error(f"XIRR calculation failed: {e}")
-        return 0.0
-
-
-# === BACKDATED EXIT HANDLING ===
+# Backdated sell records into exits.json
 def sell_from_portfolio_backdated(symbol, quantity_to_sell, sell_price, sell_date):
-    """
-    Sell with a specific backdated sell_date.
-    Records in exits.json for analytics.
-    """
     load_portfolio()
     if symbol not in portfolio:
         logging.warning(f"Tried to sell {symbol} but not in portfolio.")
         return False
 
     exits = []
-    if os.path.exists("exits.json"):
-        with open("exits.json", "r") as f:
-            exits = json.load(f)
+    if os.path.exists('exits.json'):
+        with open('exits.json', 'r') as f:
+            try:
+                exits = json.load(f)
+            except Exception:
+                exits = []
 
     remaining = quantity_to_sell
     updated_entries = []
-
     for entry in portfolio[symbol]:
         if remaining <= 0:
             updated_entries.append(entry)
             continue
-
-        if entry["quantity"] <= remaining:
+        if entry['quantity'] <= remaining:
             exits.append({
-                "symbol": symbol,
-                "quantity": entry["quantity"],
-                "purchase_price": entry["purchase_price"],
-                "purchase_date": entry["purchase_date"],
-                "sell_price": sell_price,
-                "sell_date": sell_date
+                'symbol': symbol,
+                'quantity': entry['quantity'],
+                'purchase_price': entry['purchase_price'],
+                'purchase_date': entry['purchase_date'],
+                'sell_price': sell_price,
+                'sell_date': sell_date
             })
-            remaining -= entry["quantity"]
+            remaining -= entry['quantity']
         else:
             exits.append({
-                "symbol": symbol,
-                "quantity": remaining,
-                "purchase_price": entry["purchase_price"],
-                "purchase_date": entry["purchase_date"],
-                "sell_price": sell_price,
-                "sell_date": sell_date
+                'symbol': symbol,
+                'quantity': remaining,
+                'purchase_price': entry['purchase_price'],
+                'purchase_date': entry['purchase_date'],
+                'sell_price': sell_price,
+                'sell_date': sell_date
             })
-            entry["quantity"] -= remaining
+            entry['quantity'] -= remaining
             remaining = 0
             updated_entries.append(entry)
 
@@ -423,235 +175,625 @@ def sell_from_portfolio_backdated(symbol, quantity_to_sell, sell_price, sell_dat
         portfolio[symbol] = updated_entries
     else:
         del portfolio[symbol]
-
     save_portfolio()
-    with open("exits.json", "w") as f:
+
+    with open('exits.json', 'w') as f:
         json.dump(exits, f, indent=4)
-
     return True
-def get_booked_profit():
-    """Return total realized (booked) profit from exited trades."""
-    if not os.path.exists("exits.json"):
-        return 0.0
 
-    with open("exits.json", "r") as f:
+# === PRICE DATA HELPERS ===
+
+def get_last_date(symbol):
+    with sqlite3.connect(DB_FILE) as conn:
+        r = conn.execute("SELECT MAX(date) FROM price_history WHERE symbol = ?", (symbol,)).fetchone()
+        return r[0] if r else None
+
+
+def fetch_and_store_price_data(symbol, start_date=None, period='1d'):
+    """
+    Tries to fetch price data using yfinance if available. If yfinance is not installed
+    this function logs a warning and returns without inserting.
+    """
+    try:
+        import yfinance as yf
+    except Exception:
+        logging.debug("yfinance not installed — fetch_and_store_price_data is a no-op")
+        return
+
+    try:
+        if period == '20d':
+            df = yf.Ticker(symbol).history(period=period)
+            if df is None or df.empty:
+                return
+            df.index = pd.to_datetime(df.index)
+            with sqlite3.connect(DB_FILE) as conn:
+                for idx, row in df.iterrows():
+                    date_str = idx.strftime('%Y-%m-%d')
+                    conn.execute("INSERT OR IGNORE INTO price_history (symbol,date,close,volume) VALUES (?,?,?,?)",
+                                 (symbol, date_str, float(row['Close']), float(row.get('Volume', 0))))
+        else:
+            # single day
+            hist = yf.Ticker(symbol).history(period='1d')
+            if hist is None or hist.empty:
+                return
+            last = hist['Close'][-1]
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.execute("INSERT OR IGNORE INTO price_history (symbol,date,close,volume) VALUES (?,?,?,?)",
+                             (symbol, datetime.now().strftime('%Y-%m-%d'), float(last), 0))
+    except Exception as e:
+        logging.warning(f"Failed to fetch/store price for {symbol}: {e}")
+
+
+def get_current_price(symbol, avoidCache=False):
+    if avoidCache:
+        fetch_and_store_price_data(symbol, period='1d')
+    with sqlite3.connect(DB_FILE) as conn:
+        r = conn.execute("SELECT close FROM price_history WHERE symbol = ? ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
+        return r[0] if r else None
+
+# === PORTFOLIO METRICS ===
+
+def get_total_portfolio_value():
+    load_portfolio()
+    total = 0.0
+    for symbol, entries in portfolio.items():
+        price = get_current_price(symbol)
+        if price is None:
+            continue
+        for e in entries:
+            total += e['quantity'] * price
+    return total
+
+
+def get_average_holding_period():
+    if not os.path.exists('exits.json'):
+        return 0
+    with open('exits.json','r') as f:
         exits = json.load(f)
-
-    profit = 0.0
+    days = []
     for e in exits:
-        buy_val = e["purchase_price"] * e["quantity"]
-        sell_val = e["sell_price"] * e["quantity"]
-        profit += (sell_val - buy_val)
-    return profit
+        try:
+            d1 = datetime.strptime(e['purchase_date'],'%Y-%m-%d')
+            d2 = datetime.strptime(e['sell_date'],'%Y-%m-%d')
+            days.append((d2-d1).days)
+        except Exception:
+            pass
+    return sum(days)/len(days) if days else 0
 
 
-'''def get_mtm_unrealized():
-    """Return current unrealized mark-to-market P&L for open positions."""
+def get_total_invested():
+    load_portfolio()
+    invested = 0.0
+    for symbol, entries in portfolio.items():
+        for e in entries:
+            invested += e['quantity'] * e['purchase_price']
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+        for e in exits:
+            invested += e['quantity'] * e['purchase_price']
+    return invested
+
+
+def get_mtm_unrealized():
     load_portfolio()
     mtm = 0.0
     for symbol, entries in portfolio.items():
-        current_price = get_current_price(symbol)
-        if current_price is None:
+        price = get_current_price(symbol)
+        if price is None:
             continue
         for e in entries:
-            buy_val = e["purchase_price"] * e["quantity"]
-            current_val = current_price * e["quantity"]
-            mtm += (current_val - buy_val)
-    return mtm'''
+            mtm += (price - e['purchase_price']) * e['quantity']
+    return mtm
+
+
+def get_portfolio_returns():
+    load_portfolio()
+    invested = 0.0
+    current_val = 0.0
+    earliest = None
+    for symbol, entries in portfolio.items():
+        price = get_current_price(symbol)
+        if price is None:
+            continue
+        for e in entries:
+            invested += e['quantity'] * e['purchase_price']
+            current_val += e['quantity'] * price
+            d = datetime.strptime(e['purchase_date'],'%Y-%m-%d')
+            if earliest is None or d < earliest:
+                earliest = d
+    realized = 0.0
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+        for e in exits:
+            invested += e['quantity'] * e['purchase_price']
+            realized += e['quantity'] * e['sell_price']
+            d = datetime.strptime(e['purchase_date'],'%Y-%m-%d')
+            if earliest is None or d < earliest:
+                earliest = d
+    if invested == 0:
+        return 0.0,0.0
+    total_val = current_val + realized
+    cum = (total_val - invested)/invested
+    today = datetime.now()
+    days = max((today - earliest).days,1) if earliest else 1
+    ann = (1+cum)**(365/days)-1
+    return cum, ann
+
+# XNPV / XIRR helpers
+def xnpv(rate, cashflows):
+    t0 = min(cf[0] for cf in cashflows)
+    return sum(cf[1]/((1+rate)**((cf[0]-t0).days/365.0)) for cf in cashflows)
+
+
+def get_portfolio_xirr():
+    cashflows = []
+    load_portfolio()
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+    else:
+        exits = []
+    for symbol, entries in portfolio.items():
+        for e in entries:
+            cashflows.append((datetime.strptime(e['purchase_date'],'%Y-%m-%d'), -e['quantity']*e['purchase_price']))
+    for e in exits:
+        cashflows.append((datetime.strptime(e['sell_date'],'%Y-%m-%d'), e['quantity']*e['sell_price']))
+    if not cashflows:
+        return 0.0
+    try:
+        r = newton(lambda rr: xnpv(rr, cashflows), 0.1)
+        return r
+    except Exception as e:
+        logging.error(f"XIRR failed: {e}")
+        return 0.0
+
+# === SIMPLE STRATEGY PLACEHOLDERS ===
+
+def place_sell_order(symbol, quantity):
+    logging.info(f"(sim) SELL {quantity} {symbol}")
+    return True
+
+def place_buy_order(symbol, quantity):
+    logging.info(f"(sim) BUY {quantity} {symbol}")
+    return True
+
+# 20-day MA helper using DB (calls fetch_and_store_price_data for 20d if needed)
 
 def get_20_day_ma(symbol):
-    last_date = get_last_date(symbol)
-    today = datetime.now().strftime('%Y-%m-%d')
-    start_date = '2022-01-01' if last_date is None else last_date
-    fetch_and_store_price_data(symbol, start_date, '20d')
-
+    last = get_last_date(symbol)
+    start = '2022-01-01' if last is None else last
+    fetch_and_store_price_data(symbol, start_date=start, period='20d')
     with sqlite3.connect(DB_FILE) as conn:
-        rows = conn.execute("SELECT close FROM price_history WHERE symbol = ? ORDER BY date DESC LIMIT 20", (symbol,)).fetchall()
+        rows = conn.execute("SELECT close FROM price_history WHERE symbol=? ORDER BY date DESC LIMIT 20", (symbol,)).fetchall()
         closes = [r[0] for r in rows]
-        return sum(closes) / len(closes) if len(closes) == 20 else None
+        return sum(closes)/len(closes) if len(closes)==20 else None
 
-# === PORTFOLIO ANALYTICS ===
-# (unchanged from your code except they now use updated portfolio structure)
-# ... keep your existing get_total_portfolio_value, get_drawdowns, get_average_holding_period,
-# get_portfolio_returns, get_portfolio_xirr as they are ...
+# === STRATEGY (keeps previous behavior but relies on DB price history) ===
 
-# === TRADING STRATEGY ===
 def check_and_trade():
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
     current_date = now.strftime('%Y-%m-%d')
     logging.info(f"Running strategy at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    if now.weekday() >= 5:
-        logging.info("Market is closed (weekend). Skipping trade.")
+    if now.weekday() >= 5 or current_date in NSE_HOLIDAYS:
+        logging.info("Market closed. Skipping.")
         return
-    if current_date in NSE_HOLIDAYS:
-        logging.info("Market is closed (holiday). Skipping trade.")
+    nifty50 = fetch_nifty50_stocks()
+    if not nifty50:
+        logging.info("No Nifty50 list — skipping buy/sell checks.")
         return
-
-    nifty50_stocks = fetch_nifty50_stocks()
-    if not nifty50_stocks:
-        logging.error("No Nifty 50 stocks available. Skipping trade.")
-        return
-
     load_portfolio()
-
-    # Step 1: Warn if non-Nifty stocks in portfolio
-    for symbol in portfolio:
-        if symbol not in nifty50_stocks:
-            logging.warning(f"FLAG: {symbol} is in portfolio but NOT in Nifty 50 index. Review holding.")
-
-    # Step 2: Check for stocks with >5% gain
-    max_gain_stocks = []
-    max_gain_percent = 0.0
-
-    for symbol in portfolio:
-        for i, entry in enumerate(portfolio[symbol]):
-            purchase_price = entry['purchase_price']          
-            current_price = get_current_price(symbol, True)
-            if current_price is None:
+    # warn about non-nifty holdings
+    for s in list(portfolio.keys()):
+        if s not in nifty50:
+            logging.warning(f"Holding {s} not in Nifty50")
+    # sell winners >5%
+    to_sell = []
+    for s, entries in portfolio.items():
+        for e in entries:
+            cp = get_current_price(s, avoidCache=True)
+            if cp is None:
                 continue
-            gain_percent = ((current_price - purchase_price) / purchase_price) * 100
-            logging.info(f"{symbol} (Entry {i}): CP={current_price:.2f}, PP={purchase_price:.2f}, Date={entry['purchase_date']}, Gain={gain_percent:.2f}%")
-
-            if gain_percent >= 5.0:
-                max_gain_stocks.append((symbol, current_price, gain_percent))
-                if gain_percent > max_gain_percent:
-                    max_gain_percent = gain_percent
-
-    # Step 3: Sell profitable stocks
-    for symbol, current_price, gain_percent in max_gain_stocks:
-        quantity = sum(entry['quantity'] for entry in portfolio[symbol])
-        if place_sell_order(symbol, quantity):
-            # Backdated sell with current date
-            sell_from_portfolio_backdated(symbol, quantity, current_price, current_date)
-            logging.info(f"Sold {quantity} shares of {symbol} with {gain_percent:.2f}% gain.")
-        else:
-            logging.error(f"Failed to sell {symbol}.")
-
-    # Step 4: Pick stock farthest below 20d MA
-    deviation_list = []
-    for symbol in nifty50_stocks:
-        if symbol in portfolio:
+            gain = (cp - e['purchase_price'])/e['purchase_price']*100
+            if gain >= 5:
+                to_sell.append((s, cp, gain))
+    for s, cp, gain in to_sell:
+        qty = sum(x['quantity'] for x in portfolio.get(s,[]))
+        if place_sell_order(s, qty):
+            sell_from_portfolio_backdated(s, qty, cp, current_date)
+            logging.info(f"Sold {qty} {s} with gain {gain:.2f}%")
+    # pick farthest below 20d MA
+    candidates = []
+    for s in nifty50:
+        if s in portfolio:
             continue
-        current_price = get_current_price(symbol)
-        ma_20 = get_20_day_ma(symbol)
-        if current_price is None or ma_20 is None:
+        cp = get_current_price(s)
+        ma = get_20_day_ma(s)
+        if cp is None or ma is None:
             continue
-        deviation = ((current_price - ma_20) / ma_20) * 100
-        deviation_list.append((symbol, deviation, current_price))
+        deviation = (cp - ma)/ma*100
+        candidates.append((deviation, s, cp))
+    if candidates:
+        candidates.sort()
+        deviation, sym, price = candidates[0]
+        qty = int(15000/price) if price>0 else 0
+        if qty>0 and place_buy_order(sym, qty):
+            add_to_portfolio(sym, price, qty, current_date)
+            logging.info(f"Bought {qty} of {sym} at {price:.2f}")
 
-    if not deviation_list:
-        logging.info("No eligible stocks for buying.")
+# === DISPLAY / REPORT FUNCTIONS ===
+
+def show_portfolio():
+    if os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE,'r') as f:
+            pf = json.load(f)
+        rows = []
+        for s,entries in pf.items():
+            for e in entries:
+                rows.append([s, e['quantity'], f"{e['purchase_price']:,.2f}", e['purchase_date']])
+        print('📊 Current Portfolio')
+        print(tabulate(rows, headers=["Symbol","Qty","Buy Price","Date"], tablefmt='fancy_grid'))
     else:
-        deviation_list.sort(key=lambda x: x[1])
-        max_deviation_stock, deviation, current_price = deviation_list[0]
+        print('No portfolio file')
 
-        # Step 5: Buy stock
-        quantity = int(15000 / current_price)
-        if quantity > 0:
-            if place_buy_order(max_deviation_stock, quantity):
-                add_to_portfolio(max_deviation_stock, current_price, quantity, current_date)
-                logging.info(f"Bought {quantity} shares of {max_deviation_stock} at {current_price:.2f}.")
+
+def show_exits():
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+        rows = []
+        for t in exits:
+            pnl = (t['sell_price']-t['purchase_price'])*t['quantity']
+            rows.append([t['symbol'], t['quantity'], f"{t['purchase_price']:,.2f}", t['purchase_date'], f"{t['sell_price']:,.2f}", t['sell_date'], f"{pnl:,.2f}"])
+        print('✅ Exited Trades')
+        print(tabulate(rows, headers=["Symbol","Qty","Buy Price","Buy Date","Sell Price","Sell Date","PnL"], tablefmt='fancy_grid'))
+    else:
+        print('No exited trades')
+
+
+def show_pnl():
+    if os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE,'r') as f:
+            pf = json.load(f)
+        rows = []
+        invested=0.0; current=0.0; total_pnl=0.0
+        for s, entries in pf.items():
+            for e in entries:
+                qty = e['quantity']; bp = e['purchase_price']
+                price = get_current_price(s)
+                if price is None:
+                    price=0.0
+                inv = qty*bp; val=qty*price; pnl=val-inv
+                rows.append([s, qty, f"{bp:,.2f}", f"{price:,.2f}", f"{inv:,.2f}", f"{val:,.2f}", f"{pnl:,.2f}"])
+                invested += inv; current += val; total_pnl += pnl
+        print('💹 Stock-wise P&L')
+        print(tabulate(rows, headers=["Symbol","Qty","Buy Price","Curr Price","Invested","Curr Value","PnL"], tablefmt='fancy_grid'))
+        booked = get_booked_profit(); mtm = total_pnl
+        print('📊 Portfolio Summary')
+        print(tabulate([[f"{current:,.2f}", f"{invested:,.2f}", f"{booked:,.2f}", f"{mtm:,.2f}"]], headers=["Total Value (Open)","Invested","Booked Profit","Unrealized (MTM)"], tablefmt='fancy_grid'))
+    else:
+        print('No portfolio file')
+
+# === EQUITY CURVE & STATS ===
+
+def _get_price_on_or_before(symbol, date_str):
+    with sqlite3.connect(DB_FILE) as conn:
+        r = conn.execute("SELECT close FROM price_history WHERE symbol = ? AND date <= ? ORDER BY date DESC LIMIT 1", (symbol, date_str)).fetchone()
+        return r[0] if r else None
+
+
+def build_portfolio_equity_curve():
+    events = []
+    earliest = None
+    if os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE,'r') as f:
+            pf = json.load(f)
+        for sym, entries in pf.items():
+            for e in entries:
+                events.append((e['purchase_date'], 'buy', sym, int(e['quantity']), float(e['purchase_price'])))
+                d = datetime.strptime(e['purchase_date'],'%Y-%m-%d')
+                if earliest is None or d < earliest:
+                    earliest = d
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+        for e in exits:
+            events.append((e['purchase_date'],'buy',e['symbol'],int(e['quantity']),float(e['purchase_price'])))
+            events.append((e['sell_date'],'sell',e['symbol'],int(e['quantity']),float(e['sell_price'])))
+            for ds in (e['purchase_date'], e['sell_date']):
+                d = datetime.strptime(ds,'%Y-%m-%d')
+                if earliest is None or d < earliest:
+                    earliest = d
+    if earliest is None:
+        return [], []
+    start = earliest.strftime('%Y-%m-%d')
+    end = datetime.now().strftime('%Y-%m-%d')
+    symbols = list({ev[2] for ev in events})
+    dates = _all_price_dates_for_symbols(symbols, start, end)
+    event_dates = sorted({ev[0] for ev in events})
+    all_dates = sorted(set(dates) | set(event_dates))
+    if not all_dates:
+        d = earliest; all_dates=[]
+        while d <= datetime.now():
+            all_dates.append(d.strftime('%Y-%m-%d'))
+            d += timedelta(days=1)
+    events_by_date = {}
+    for d, typ, sym, qty, price in events:
+        events_by_date.setdefault(d, []).append((typ, sym, qty, price))
+    holdings = {}
+    cash = 0.0
+    equity_curve = []
+    for d in all_dates:
+        for ev in events_by_date.get(d, []):
+            typ, sym, qty, price = ev
+            if typ == 'buy':
+                holdings[sym] = holdings.get(sym,0) + qty
+                cash -= qty*price
             else:
-                logging.error(f"Failed to buy {max_deviation_stock}.")
-        else:
-            logging.error(f"Cannot buy {max_deviation_stock}: insufficient funds.")
+                holdings[sym] = holdings.get(sym,0) - qty
+                if holdings[sym] == 0:
+                    del holdings[sym]
+                cash += qty*price
+        mv = 0.0
+        for sym, qty in list(holdings.items()):
+            if qty == 0: continue
+            p = _get_price_on_or_before(sym, d)
+            if p is None: continue
+            mv += qty * p
+        equity = cash + mv
+        equity_curve.append((d, equity))
+    filtered = [(d,v) for d,v in equity_curve if v is not None]
+    if not filtered:
+        return [d for d,_ in equity_curve], [v for _,v in equity_curve]
+    return [d for d,_ in filtered], [v for _,v in filtered]
 
-    # === PORTFOLIO ANALYTICS LOGGING ===
+
+def _all_price_dates_for_symbols(symbols, start_date=None, end_date=None):
+    if not symbols:
+        return []
+    placeholders = ','.join('?' for _ in symbols)
+    sql = f"SELECT DISTINCT date FROM price_history WHERE symbol IN ({placeholders})"
+    params = list(symbols)
+    if start_date:
+        sql += ' AND date >= ?'
+        params.append(start_date)
+    if end_date:
+        sql += ' AND date <= ?'
+        params.append(end_date)
+    sql += ' ORDER BY date'
+    with sqlite3.connect(DB_FILE) as conn:
+        rows = conn.execute(sql, tuple(params)).fetchall()
+    return [r[0] for r in rows]
+
+
+def compute_max_drawdown_from_equity(equity_list):
+       """Calculate max drawdown from an equity curve (cumulative PnL series)."""
+    if equity_curve.empty:
+        return "N/A"
+    running_max = equity_curve.cummax()
+    drawdown = (equity_curve - running_max) / running_max
+    max_dd = drawdown.min() * 100  # in %
+    return f"{max_dd:.2f}%"
+
+
+import yfinance as yf
+import logging
+
+def get_benchmark_returns(start, end):
+    """Fetch CAGR for NIFTY50 and NIFTY500 between start and end dates."""
     try:
-
-        invested_total = get_total_invested()
-        current_value = get_total_portfolio_value()
-        booked_pnl = get_booked_profit()
-        mtm_pnl = get_mtm_unrealized()
-
-        logging.info(f"Total Portfolio Value (Open): {current_value:,.2f}")
-        logging.info(f"Total Invested Value: {invested_total:,.2f}")
-        logging.info(f"Booked Profit (Realized): {booked_pnl:,.2f}")
-        logging.info(f"Unrealized P&L (MTM): {mtm_pnl:,.2f}")
-
-        # Reconciliation check
-        logging.info(f"Check: Invested + Booked + MTM = {invested_total + booked_pnl + mtm_pnl:,.2f}")
-        total_value = get_total_portfolio_value()
-        drawdowns = get_drawdowns()
-        avg_holding = get_average_holding_period()
-        cum_ret, ann_ret = get_portfolio_returns()
-        xirr_val = get_portfolio_xirr()
-        booked_pnl = get_booked_profit()
-        mtm_pnl = get_mtm_unrealized()
-
-        logging.info("=== PORTFOLIO STATS ===")
-        logging.info(f"Total Portfolio Value: INR {total_value:,.2f}")
-        
-        logging.info(f"Booked Profit (Realized): {booked_pnl:,.2f}")
-        logging.info(f"Unrealized P&L (MTM): {mtm_pnl:,.2f}")
-        if drawdowns:
-            logging.info(f"Max Drawdown: {min(drawdowns)*100:.2f}%")
-        logging.info(f"Average Holding Period (days): {avg_holding:.1f}")
-        logging.info(f"Cumulative Return: {cum_ret*100:.2f}% | Annualized: {ann_ret*100:.2f}%")
-        logging.info(f"XIRR: {xirr_val*100:.2f}%")
+        nifty50 = yf.download("^NSEI", start=start, end=end, auto_adjust=False)["Adj Close"]
     except Exception as e:
-        logging.error(f"Error computing portfolio analytics: {e}")
-import argparse
-
-def apply_split(symbol, ratio):
-    """
-    Apply stock split. Example ratio = 2 means 1:2 split.
-    """
-    load_portfolio()
-    if symbol not in portfolio:
-        logging.error(f"{symbol} not in portfolio. Cannot apply split.")
-        return
-
-    for entry in portfolio[symbol]:
-        entry["quantity"] *= ratio
-        entry["purchase_price"] /= ratio
-
-    save_portfolio()
-    logging.info(f"Applied {ratio}-for-1 split on {symbol}.")
-
-def apply_bonus(symbol, bonus_ratio):
-    """
-    Apply bonus issue. Example '1:1' gives equal new shares.
-    """
-    load_portfolio()
-    if symbol not in portfolio:
-        logging.error(f"{symbol} not in portfolio. Cannot apply bonus.")
-        return
-
+        logging.error(f"Error fetching NIFTY50 data: {e}")
+        nifty50 = None
     try:
-        give, get = map(int, bonus_ratio.split(":"))
-    except:
-        logging.error("Invalid bonus ratio format. Use X:Y, e.g., 1:1 or 2:5")
-        return
+        nifty500 = yf.download("^CRSLDX", start=start, end=end, auto_adjust=False)["Adj Close"]
+    except Exception as e:
+        logging.error(f"Error fetching NIFTY500 data: {e}")
+        nifty500 = None
 
-    for entry in portfolio[symbol]:
-        extra = entry["quantity"] * give // get
-        entry["quantity"] += extra
-        # purchase price stays the same
+    def cagr(series):
+        if series is None or series.empty:
+            return "N/A"
+        start_val = float(series.iloc[0])
+        end_val = float(series.iloc[-1])
+        total_return = end_val / start_val - 1
+        years = (series.index[-1] - series.index[0]).days / 365.0
+        if years <= 0:
+            return "N/A"
+        cagr_val = ((1 + total_return) ** (1/years)) - 1
+        return cagr_val * 100
 
-    save_portfolio()
-    logging.info(f"Applied {bonus_ratio} bonus on {symbol}.")
+    nifty50_cagr = cagr(nifty50)
+    nifty500_cagr = cagr(nifty500)
 
-# === MAIN ENTRY ===
-if __name__ == "__main__":
+    return (
+        f"{nifty50_cagr:.2f}%" if isinstance(nifty50_cagr, float) else nifty50_cagr,
+        f"{nifty500_cagr:.2f}%" if isinstance(nifty500_cagr, float) else nifty500_cagr,
+    )
+
+def get_portfolio_cagr(trades: pd.DataFrame):
+    """Compute portfolio CAGR from closed trades DataFrame."""
+    if trades.empty:
+        return "N/A"
+    start_date = pd.to_datetime(trades["Buy Date"].min())
+    end_date = pd.to_datetime(trades["Sell Date"].max())
+    invested = (trades["Qty"] * trades["Buy Price"]).sum()
+    final_value = invested + trades["PnL"].sum()
+    total_return = final_value / invested - 1
+    years = (end_date - start_date).days / 365.0
+    if years <= 0:
+        return "N/A"
+    cagr_val = ((1 + total_return) ** (1 / years)) - 1
+    return f"{cagr_val * 100:.2f}%"
+
+
+
+
+# === STATS / REPORT ===
+def get_booked_profit():
+    if not os.path.exists('exits.json'):
+        return 0.0
+    with open('exits.json', 'r') as f:
+        exits = json.load(f)
+    booked = 0.0
+    for e in exits:
+        booked += (e['sell_price'] - e['purchase_price']) * e['quantity']
+    return booked
+
+def show_trading_stats():
+    load_portfolio()
+    invested_total = get_total_invested()
+    current_value = get_total_portfolio_value()
+    booked_pnl = get_booked_profit()
+    mtm_pnl = get_mtm_unrealized()
+
+    pnl_list = []
+    exits = []
+    if os.path.exists('exits.json'):
+        with open('exits.json','r') as f:
+            exits = json.load(f)
+
+    trade_count = winning_trades = losing_trades = 0
+    largest_win = float('-inf')
+    largest_loss = 0.0
+    holding_periods = []
+    win_streak = loss_streak = max_win_streak = max_loss_streak = 0
+
+    exit_rows = []
+    for t in exits:
+        pnl = (t['sell_price'] - t['purchase_price']) * t['quantity']
+        pnl_list.append(pnl)
+        trade_count += 1
+        if pnl > 0:
+            winning_trades += 1
+            win_streak += 1
+            loss_streak = 0
+            max_win_streak = max(max_win_streak, win_streak)
+        elif pnl < 0:
+            losing_trades += 1
+            loss_streak += 1
+            win_streak = 0
+            max_loss_streak = max(max_loss_streak, loss_streak)
+            largest_loss = min(largest_loss, pnl)
+        largest_win = max(largest_win, pnl)
+        try:
+            d1 = datetime.strptime(t['purchase_date'],'%Y-%m-%d')
+            d2 = datetime.strptime(t['sell_date'],'%Y-%m-%d')
+            holding_periods.append((d2-d1).days)
+        except Exception:
+            pass
+        exit_rows.append([t['symbol'], t['quantity'], f"{t['purchase_price']:,.2f}", t['purchase_date'], f"{t['sell_price']:,.2f}", t['sell_date'], f"{pnl:,.2f}"])
+
+    print('✅ Closed Trades (Used for Stats)')
+    if exit_rows:
+        print(tabulate(exit_rows, headers=["Symbol","Qty","Buy Price","Buy Date","Sell Price","Sell Date","PnL"], tablefmt='fancy_grid'))
+    else:
+        print('No closed trades found.')
+
+    win_rate = (winning_trades/trade_count*100.0) if trade_count else 0.0
+    avg_win = statistics.mean([p for p in pnl_list if p>0]) if any(p>0 for p in pnl_list) else 0.0
+    avg_loss = statistics.mean([p for p in pnl_list if p<0]) if any(p<0 for p in pnl_list) else 0.0
+    profit_factor = (sum(p for p in pnl_list if p>0)/abs(sum(p for p in pnl_list if p<0))) if any(p<0 for p in pnl_list) else float('inf')
+    expectancy = (sum(pnl_list)/trade_count) if trade_count else 0.0
+    sharpe = 0.0
+    if len(pnl_list)>1 and statistics.pstdev(pnl_list)!=0:
+        sharpe = statistics.mean(pnl_list)/statistics.pstdev(pnl_list)
+
+    # closed-trades equity curve (cumulative realized PnL)
+    closed_equity = []
+    cum = 0.0
+    for p in pnl_list:
+        cum += p
+        closed_equity.append(cum)
+    max_dd_closed = 0.0
+    if closed_equity:
+        peak = closed_equity[0]
+        for v in closed_equity:
+            peak = max(peak, v)
+            dd = (peak - v)/peak if peak>0 else 0.0
+            max_dd_closed = max(max_dd_closed, dd)
+
+    print('📈 Trading Performance Metrics (Closed Trades Only)')
+    print(tabulate([[trade_count, f"{win_rate:.2f}%", f"{profit_factor:.2f}", f"{expectancy:,.2f}", f"{sharpe:.2f}", f"{max_dd_closed*100:.2f}%"]], headers=["Trades","Win Rate","Profit Factor","Expectancy","Sharpe","Max DD"], tablefmt='fancy_grid'))
+
+    avg_holding = statistics.mean(holding_periods) if holding_periods else 0.0
+    largest_win_display = f"{largest_win:,.2f}" if largest_win != float('-inf') else 'N/A'
+    largest_loss_display = f"{largest_loss:,.2f}" if largest_loss < 0 else 'N/A'
+    print('📊 Trade Behavior Metrics')
+    print(tabulate([[f"{avg_holding:.1f} days", max_win_streak, max_loss_streak, largest_win_display, largest_loss_display]], headers=["Avg Holding","Longest Win Streak","Longest Loss Streak","Largest Win","Largest Loss"], tablefmt='fancy_grid'))
+
+    # Open portfolio table
+    rows = []
+    load_portfolio()
+    invested = 0.0; current = 0.0; unreal = 0.0
+    for s, entries in portfolio.items():
+        for e in entries:
+            qty = e['quantity']; bp = e['purchase_price']
+            price = get_current_price(s)
+            if price is None: price = 0.0
+            inv = qty*bp; val = qty*price; pnl = val - inv
+            rows.append([s, qty, f"{bp:,.2f}", f"{price:,.2f}", f"{inv:,.2f}", f"{val:,.2f}", f"{pnl:,.2f}", f"{(pnl/inv*100) if inv else 0:.2f}%"])
+            invested += inv; current += val; unreal += pnl
+    print('📊 Open Portfolio (Not included in stats)')
+    if rows:
+        print(tabulate(rows, headers=["Symbol","Qty","Buy Price","Curr Price","Invested","Curr Value","PnL","Return %"], tablefmt='fancy_grid'))
+    else:
+        print('No open positions')
+
+    print('💹 Portfolio Overview')
+    print(tabulate([[f"{current:,.2f}", f"{invested:,.2f}", f"{booked_pnl:,.2f}", f"{unreal:,.2f}"]], headers=["Total Value (Open)","Invested","Booked Profit","Unrealized (MTM)"], tablefmt='fancy_grid'))
+
+    # portfolio equity and portfolio drawdown
+    dates, eq = build_portfolio_equity_curve()
+    if eq:
+        port_dd = compute_max_drawdown_from_equity(eq)
+        print(f"📉 Portfolio Max Drawdown: {port_dd:.2f}%")
+        start, end = dates[0], dates[-1]
+        nifty50_cagr, nifty500_cagr = get_benchmark_returns(start, end)
+        #= get_benchmark_returns(start, end)
+        print('📊 Benchmark Comparison (CAGR over same period)')
+        print(tabulate([["Portfolio", "TBD", nifty50_cagr,nifty500_cagr]], headers=["Series","Portfolio CAGR","NIFTY50 CAGR","NIFTY 500 CAGR"], tablefmt='fancy_grid'))
+    else:
+        logging.info('Not enough data for portfolio equity curve')
+
+# === MAIN ===
+if __name__ == '__main__':
+    init_db()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split", nargs=2, metavar=("SYMBOL", "RATIO"),
-                        help="Apply stock split (e.g., RELIANCE.NS 2)")
-    parser.add_argument("--bonus", nargs=2, metavar=("SYMBOL", "RATIO"),
-                        help="Apply bonus (e.g., TCS.NS 1:1)")
+    parser.add_argument('--split', nargs=2, metavar=('SYMBOL','RATIO'))
+    parser.add_argument('--bonus', nargs=2, metavar=('SYMBOL','RATIO'))
+    parser.add_argument('--viewpf', action='store_true')
+    parser.add_argument('--exits', action='store_true')
+    parser.add_argument('--pnl', action='store_true')
+    parser.add_argument('--stats', nargs='?', const='1')
     args = parser.parse_args()
 
-    
-
     if args.split:
-        symbol, ratio = args.split
-        apply_split(symbol, int(ratio))
+        sym, r = args.split
+        try:
+            apply_split(sym, int(r))
+        except Exception:
+            logging.error('split failed')
     elif args.bonus:
-        symbol, ratio = args.bonus
-        apply_bonus(symbol, ratio)
+        sym, r = args.bonus
+        try:
+            apply_bonus(sym, r)
+        except Exception:
+            logging.error('bonus failed')
+    elif args.viewpf:
+        show_portfolio()
+    elif args.exits:
+        show_exits()
+    elif args.pnl:
+        show_pnl()
+    elif args.stats is not None:
+        show_trading_stats()
 
-    init_db()
-    check_and_trade()
-
+    # Run strategy once per invocation (non-blocking)
+    try:
+        check_and_trade()
+    except Exception as e:
+        logging.error(f"Strategy run failed: {e}")

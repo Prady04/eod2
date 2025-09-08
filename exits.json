@@ -6,5 +6,45 @@
         "purchase_date": "2025-07-16",
         "sell_price": 3605.8,
         "sell_date": "2025-08-21"
+    },
+    {
+        "symbol": "NESTLEIND.NS",
+        "quantity": 12,
+        "purchase_price": 1161.05,
+        "purchase_date": "2025-07-25",
+        "sell_price": 1222.4,
+        "sell_date": "2025-09-04"
+    },
+    {
+        "symbol": "BAJFINANCE.NS",
+        "quantity": 16,
+        "purchase_price": 886.55,
+        "purchase_date": "2025-07-30",
+        "sell_price": 941.2,
+        "sell_date": "2025-09-04"
+    },
+    {
+        "symbol": "TATASTEEL.NS",
+        "quantity": 95,
+        "purchase_price": 157.22999572753906,
+        "purchase_date": "2025-08-18",
+        "sell_price": 167.01,
+        "sell_date": "2025-09-04"
+    },
+    {
+        "symbol": "TRENT.NS",
+        "quantity": 2,
+        "purchase_price": 5290.0,
+        "purchase_date": "2025-09-02",
+        "sell_price": 5641.0,
+        "sell_date": "2025-09-04"
+    },
+    {
+        "symbol": "M&M.NS",
+        "quantity": 4,
+        "purchase_price": 3257.199951171875,
+        "purchase_date": "2025-09-04",
+        "sell_price": 3546.0,
+        "sell_date": "2025-09-05"
     }
 ]
