@@ -45,7 +45,7 @@ from tradingview_screener import Query,col
 
 x = query.get_scanner_data()
 for i, df in enumerate(x):
-   print(df)'''
+    print(df)'''
    
 
 unusual_volume_stocks = (Query()

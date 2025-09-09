@@ -569,13 +569,13 @@ def _all_price_dates_for_symbols(symbols, start_date=None, end_date=None):
 
 
 def compute_max_drawdown_from_equity(equity_list):
-       """Calculate max drawdown from an equity curve (cumulative PnL series)."""
-    if equity_curve.empty:
+    """Calculate max drawdown from an equity curve (cumulative PnL series)."""
+    '''if equity_curve.empty:
         return "N/A"
     running_max = equity_curve.cummax()
     drawdown = (equity_curve - running_max) / running_max
     max_dd = drawdown.min() * 100  # in %
-    return f"{max_dd:.2f}%"
+    return f"{max_dd:.2f}%"'''
 
 
 import yfinance as yf

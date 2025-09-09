@@ -167,13 +167,6 @@
             "purchase_date": "2025-09-02"
         }
     ],
-    "JSWSTEEL.NS": [
-        {
-            "purchase_price": 1040.800048828125,
-            "quantity": 14,
-            "purchase_date": "2025-09-03"
-        }
-    ],
     "NTPC.NS": [
         {
             "purchase_price": 334.1499938964844,
@@ -186,6 +179,13 @@
             "purchase_price": 759.9000244140625,
             "quantity": 19,
             "purchase_date": "2025-09-05"
+        }
+    ],
+    "TATACONSUM.NS": [
+        {
+            "purchase_price": 1062.300048828125,
+            "quantity": 14,
+            "purchase_date": "2025-09-09"
         }
     ]
 }

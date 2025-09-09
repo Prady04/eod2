@@ -46,5 +46,13 @@
         "purchase_date": "2025-09-04",
         "sell_price": 3546.0,
         "sell_date": "2025-09-05"
+    },
+    {
+        "symbol": "JSWSTEEL.NS",
+        "quantity": 14,
+        "purchase_price": 1040.800048828125,
+        "purchase_date": "2025-09-03",
+        "sell_price": 1101.4000244140625,
+        "sell_date": "2025-09-09"
     }
 ]
