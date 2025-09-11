@@ -3,7 +3,9 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 import os
+import logging
 
+logger = logging.getLogger()
 # 1. Your list of symbols
 symbols = ["^NSEI"]
 json_dir = ".\\json_files"
@@ -17,7 +19,7 @@ for sym in symbols:
             existing = json.load(f)
         # parse out the last date we have
         last_date = max(item['time'] for item in existing)
-        start_date = datetime.strptime(last_date, "%Y-%m-%d") + timedelta(days=5)
+        start_date = datetime.strptime(last_date, "%Y-%m-%d") #+ timedelta(days=5)
     else:
         existing = []
         start_date = datetime.now() - timedelta(days=90)  # default look-back
@@ -50,11 +52,12 @@ for sym in symbols:
     candles = [combined[dt] for dt in sorted(combined)]
     import os
     current_directory = os.getcwd()
-    print(current_directory)
+
     # 5. Re-write the JSON file
     with open(json_file, "w") as f:
         json.dump(candles, f, indent=2)
     print(f"Updated {json_file}: {len(new_candles)} new points")
+    logger.info(f"Updated {json_file}: {len(new_candles)} new points")
 
     # 6. Re-calculate Gann levels off the **lowest low** of the full set
     lows = [pt['low'] for pt in candles]
@@ -71,8 +74,10 @@ for sym in symbols:
         json.dump(gann_levels, f, indent=2)
         for x in gann_levels:
             print(round(x,2))
+            logger.info
 
     print(f"Re-wrote {lvl_file} with base={base:.2f}\n")
+    logger.info(f"Re-wrote {lvl_file} with base={base:.2f}\n")
 import yfinance as yf
 import pandas as pd
 import mplfinance as mpf
@@ -93,11 +98,14 @@ df = yf.download(symbol,
                  end=(datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
                  interval="15m")
 
-if isinstance(df.columns, pd.MultiIndex):
+if df is not None and isinstance(df.columns, pd.MultiIndex):
     df.columns = df.columns.get_level_values(0)
 
 # ensure datetime index
-df.index = pd.to_datetime(df.index)
+if df is not None:
+    df.index = pd.to_datetime(df.index)
+else:
+    raise ValueError("Downloaded DataFrame 'df' is None. Check yf.download parameters or symbol.")
 
 # Convert index to IST if it's UTC (safe-guard)
 try:
@@ -193,11 +201,12 @@ current_date_str = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%d-%b-%
 fig.text(0.5, 0.01, f"Date: {current_date_str}", ha='center', fontsize=9, color='gray')
 
 plt.title(f"NIFTY - 15min", fontsize=14)
-plt.tight_layout(rect=[0, 0.03, 1, 0.98])  # leave small bottom margin for footer
+plt.tight_layout(rect=(0, 0.03, 1, 0.98))  # leave small bottom margin for footer
 
 # -- Save exported image --
 out_file = "C:\\temp\\img\\nifty"+ datetime.now().strftime("%d%m%Y%H%M")+".jpg"
 plt.savefig(out_file, dpi=150, bbox_inches='tight')
 print(f"Saved chart to {out_file}")
+logger.info(f"Saved chart to {out_file}")
 
 #plt.show()

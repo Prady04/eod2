@@ -54,5 +54,13 @@
         "purchase_date": "2025-09-03",
         "sell_price": 1101.4000244140625,
         "sell_date": "2025-09-09"
+    },
+    {
+        "symbol": "BAJAJFINSV.NS",
+        "quantity": 7,
+        "purchase_price": 1933.6,
+        "purchase_date": "2025-08-04",
+        "sell_price": 2040.5999755859375,
+        "sell_date": "2025-09-10"
     }
 ]

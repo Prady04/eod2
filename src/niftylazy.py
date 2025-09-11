@@ -11,11 +11,13 @@ import io
 import logging
 from scipy.optimize import newton
 import statistics
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Logging handlers (file + console)
 handlers = []
 try:
-    handlers = [logging.FileHandler('./src/trading.log'), logging.StreamHandler()]
+    handlers = [logging.FileHandler('./src/niftylazy.log'), logging.StreamHandler()]
 except Exception:
     handlers = [logging.StreamHandler()]
 
@@ -216,12 +218,12 @@ def fetch_and_store_price_data(symbol, start_date=None, period='1d'):
             hist = yf.Ticker(symbol).history(period='1d')
             if hist is None or hist.empty:
                 return
-            last = hist['Close'][-1]
+            last = hist['Close'].iat[-1]
             with sqlite3.connect(DB_FILE) as conn:
                 conn.execute("INSERT OR IGNORE INTO price_history (symbol,date,close,volume) VALUES (?,?,?,?)",
                              (symbol, datetime.now().strftime('%Y-%m-%d'), float(last), 0))
     except Exception as e:
-        logging.warning(f"Failed to fetch/store price for {symbol}: {e}")
+        logging.error(f"Failed to fetch/store price for {symbol}: {e}")
 
 
 def get_current_price(symbol, avoidCache=False):
@@ -406,7 +408,10 @@ def check_and_trade():
             logging.info(f"Sold {qty} {s} with gain {gain:.2f}%")
     # pick farthest below 20d MA
     candidates = []
-    for s in nifty50:
+    from tqdm import tqdm
+    import time
+    bar = tqdm(nifty50, desc='Scanning Nifty50')
+    for s in bar:
         if s in portfolio:
             continue
         cp = get_current_price(s)
@@ -685,7 +690,7 @@ def show_trading_stats():
             holding_periods.append((d2-d1).days)
         except Exception:
             pass
-        exit_rows.append([t['symbol'], t['quantity'], f"{t['purchase_price']:,.2f}", t['purchase_date'], f"{t['sell_price']:,.2f}", t['sell_date'], f"{pnl:,.2f}"])
+        exit_rows.append([str(t['symbol']).rstrip('.NS'), t['quantity'], f"{t['purchase_price']:,.2f}", t['purchase_date'], f"{t['sell_price']:,.2f}", t['sell_date'], f"{pnl:,.2f}"])
 
     print('✅ Closed Trades (Used for Stats)')
     if exit_rows:
@@ -702,22 +707,27 @@ def show_trading_stats():
     if len(pnl_list)>1 and statistics.pstdev(pnl_list)!=0:
         sharpe = statistics.mean(pnl_list)/statistics.pstdev(pnl_list)
 
-    # closed-trades equity curve (cumulative realized PnL)
-    closed_equity = []
-    cum = 0.0
-    for p in pnl_list:
-        cum += p
-        closed_equity.append(cum)
-    max_dd_closed = 0.0
-    if closed_equity:
-        peak = closed_equity[0]
-        for v in closed_equity:
-            peak = max(peak, v)
-            dd = (peak - v)/peak if peak>0 else 0.0
-            max_dd_closed = max(max_dd_closed, dd)
+    #import pandas as pd
 
-    print('📈 Trading Performance Metrics (Closed Trades Only)')
-    print(tabulate([[trade_count, f"{win_rate:.2f}%", f"{profit_factor:.2f}", f"{expectancy:,.2f}", f"{sharpe:.2f}", f"{max_dd_closed*100:.2f}%"]], headers=["Trades","Win Rate","Profit Factor","Expectancy","Sharpe","Max DD"], tablefmt='fancy_grid'))
+    # If pnl_list is in a pandas Series
+        closed_equity = pd.DataFrame(pnl_list).cumsum()
+        running_max = closed_equity.expanding().max()
+        drawdown = (running_max - closed_equity) / running_max
+        max_dd_closed = drawdown.max()
+        if hasattr(max_dd_closed, "item"):
+            max_dd_closed = max_dd_closed.item()
+        if max_dd_closed is None or (hasattr(max_dd_closed, "any") and pd.isna(max_dd_closed).any()):
+            max_dd_closed = 0.0
+        print('📈 Trading Performance Metrics (Closed Trades Only)')
+        max_dd_value = max_dd_closed*100
+        #cagr = get_portfolio_cagr(pd.DataFrame(exit_rows, columns=["Symbol","   Qty","Buy Price","Buy Date","Sell Price","Sell Date","PnL"]))
+        print(tabulate([[trade_count, f"{win_rate:.2f}%", f"{profit_factor:.2f}", f"{expectancy:,.2f}", f"{sharpe:.2f}", f"{max_dd_value*100:.2f}%"]], headers=["Trades","Win Rate","Profit Factor","Expectancy","Sharpe","Max DD"], tablefmt='fancy_grid'))
+    else:   
+        print('📈 Trading Performance Metrics (Closed Trades Only)')
+        max_dd_closed = 0.0
+        max_dd_value = float(max_dd_closed)*100
+        port_dd = max_dd_closed  # Use the same value, 
+        print(tabulate([[trade_count, f"{win_rate:.2f}%", f"{profit_factor:.2f}", f"{expectancy:,.2f}", f"{sharpe:.2f}", f"{max_dd_value*100:.2f}%"]], headers=["Trades","Win Rate","Profit Factor","Expectancy","Sharpe","Max DD"], tablefmt='fancy_grid'))
 
     avg_holding = statistics.mean(holding_periods) if holding_periods else 0.0
     largest_win_display = f"{largest_win:,.2f}" if largest_win != float('-inf') else 'N/A'
@@ -735,7 +745,7 @@ def show_trading_stats():
             price = get_current_price(s)
             if price is None: price = 0.0
             inv = qty*bp; val = qty*price; pnl = val - inv
-            rows.append([s, qty, f"{bp:,.2f}", f"{price:,.2f}", f"{inv:,.2f}", f"{val:,.2f}", f"{pnl:,.2f}", f"{(pnl/inv*100) if inv else 0:.2f}%"])
+            rows.append([s.rstrip('.NS'), qty, f"{bp:,.2f}", f"{price:,.2f}", f"{inv:,.2f}", f"{val:,.2f}", f"{pnl:,.2f}", f"{(pnl/inv*100) if inv else 0:.2f}%"])
             invested += inv; current += val; unreal += pnl
     print('📊 Open Portfolio (Not included in stats)')
     if rows:
@@ -750,6 +760,7 @@ def show_trading_stats():
     dates, eq = build_portfolio_equity_curve()
     if eq:
         port_dd = compute_max_drawdown_from_equity(eq)
+        if port_dd is None or (hasattr(port_dd, "any") and pd.isna(port_dd).any()): port_dd = 0.0
         print(f"📉 Portfolio Max Drawdown: {port_dd:.2f}%")
         start, end = dates[0], dates[-1]
         nifty50_cagr, nifty500_cagr = get_benchmark_returns(start, end)
