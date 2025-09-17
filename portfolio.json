@@ -146,13 +146,6 @@
             "purchase_date": "2025-08-22"
         }
     ],
-    "COALINDIA.NS": [
-        {
-            "purchase_price": 378.75,
-            "quantity": 39,
-            "purchase_date": "2025-08-25"
-        }
-    ],
     "SBILIFE.NS": [
         {
             "purchase_price": 1818.0,
@@ -174,13 +167,6 @@
             "purchase_date": "2025-09-05"
         }
     ],
-    "TATACONSUM.NS": [
-        {
-            "purchase_price": 1062.300048828125,
-            "quantity": 14,
-            "purchase_date": "2025-09-09"
-        }
-    ],
     "TRENT.NS": [
         {
             "purchase_price": 5315.5,
@@ -200,6 +186,27 @@
             "purchase_price": 12392.0,
             "quantity": 1,
             "purchase_date": "2025-09-12"
+        }
+    ],
+    "TITAN.NS": [
+        {
+            "purchase_price": 3584.199951171875,
+            "quantity": 4,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "HINDUNILVR.NS": [
+        {
+            "purchase_price": 2582.5,
+            "quantity": 5,
+            "purchase_date": "2025-09-16"
+        }
+    ],
+    "ASIANPAINT.NS": [
+        {
+            "purchase_price": 2493.60009765625,
+            "quantity": 6,
+            "purchase_date": "2025-09-17"
         }
     ]
 }

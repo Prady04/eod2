@@ -62,5 +62,21 @@
         "purchase_date": "2025-08-04",
         "sell_price": 2040.5999755859375,
         "sell_date": "2025-09-10"
+    },
+    {
+        "symbol": "COALINDIA.NS",
+        "quantity": 39,
+        "purchase_price": 378.75,
+        "purchase_date": "2025-08-25",
+        "sell_price": 399.8500061035156,
+        "sell_date": "2025-09-17"
+    },
+    {
+        "symbol": "TATACONSUM.NS",
+        "quantity": 14,
+        "purchase_price": 1062.300048828125,
+        "purchase_date": "2025-09-09",
+        "sell_price": 1127.5,
+        "sell_date": "2025-09-17"
     }
 ]

@@ -42,7 +42,7 @@ from tradingview_screener import Query,col
  .set_markets('india')
  .set_property('symbols', {'query': {'types': ['stock', 'fund', 'dr', 'structured']}})
  .set_property('preset', 'pre-market-gainers'))
-
+print('prematket gainers')
 x = query.get_scanner_data()
 for i, df in enumerate(x):
     print(df)'''
@@ -87,9 +87,10 @@ unusual_volume_stocks = (Query()
      
  )
  .order_by('relative_volume_10d_calc', ascending=False, nulls_first=False)
- .limit(100)
+ .limit(20)
  .set_markets('india')
  .set_property('symbols', {'query': {'types': ['stock', 'fund', 'dr', 'structured']}})
  .set_property('preset', 'unusual_volume')).get_scanner_data()
+print('unusual volume stocks')
 for i, df in enumerate(unusual_volume_stocks):
    print(df)    

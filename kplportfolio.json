@@ -1,0 +1,345 @@
+{
+    "IDEA.NS": [
+        {
+            "purchase_price": 8.14,
+            "quantity": 1842,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "SBICARD.NS": [
+        {
+            "purchase_price": 900.05,
+            "quantity": 16,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "TIINDIA.NS": [
+        {
+            "purchase_price": 3354.1,
+            "quantity": 4,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "NHPC.NS": [
+        {
+            "purchase_price": 86.61,
+            "quantity": 173,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "IREDA.NS": [
+        {
+            "purchase_price": 152.37,
+            "quantity": 98,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "HUDCO.NS": [
+        {
+            "purchase_price": 223.06,
+            "quantity": 67,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "SIEMENS.NS": [
+        {
+            "purchase_price": 3293.7,
+            "quantity": 4,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "MOTHERSON.NS": [
+        {
+            "purchase_price": 107.81,
+            "quantity": 139,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "RVNL.NS": [
+        {
+            "purchase_price": 347.25,
+            "quantity": 43,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "TITAGARH.NS": [
+        {
+            "purchase_price": 948.3,
+            "quantity": 15,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "BDL.NS": [
+        {
+            "purchase_price": 1604.7,
+            "quantity": 9,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "PHOENIXLTD.NS": [
+        {
+            "purchase_price": 1587.6,
+            "quantity": 9,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "INOXWIND.NS": [
+        {
+            "purchase_price": 151.32,
+            "quantity": 99,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "IRFC.NS": [
+        {
+            "purchase_price": 128.18,
+            "quantity": 117,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "HAVELLS.NS": [
+        {
+            "purchase_price": 1595.2,
+            "quantity": 9,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "ABB.NS": [
+        {
+            "purchase_price": 5338.8,
+            "quantity": 2,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "PPLPHARMA.NS": [
+        {
+            "purchase_price": 203.69,
+            "quantity": 73,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "IEX.NS": [
+        {
+            "purchase_price": 147.21,
+            "quantity": 101,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "AMBER.NS": [
+        {
+            "purchase_price": 8080.0,
+            "quantity": 1,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "TATACHEM.NS": [
+        {
+            "purchase_price": 975.4,
+            "quantity": 15,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "CANBK.NS": [
+        {
+            "purchase_price": 112.51,
+            "quantity": 133,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "BHARATFORG.NS": [
+        {
+            "purchase_price": 1237.2,
+            "quantity": 12,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "PNB.NS": [
+        {
+            "purchase_price": 108.51,
+            "quantity": 138,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "LTF.NS": [
+        {
+            "purchase_price": 237.1,
+            "quantity": 63,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "IOC.NS": [
+        {
+            "purchase_price": 143.99,
+            "quantity": 104,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "GAIL.NS": [
+        {
+            "purchase_price": 179.93,
+            "quantity": 83,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "JINDALSTEL.NS": [
+        {
+            "purchase_price": 1046.3,
+            "quantity": 14,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "HAL.NS": [
+        {
+            "purchase_price": 4795.2,
+            "quantity": 3,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "ALKEM.NS": [
+        {
+            "purchase_price": 5500.5,
+            "quantity": 2,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "BAJFINANCE.NS": [
+        {
+            "purchase_price": 1009.85,
+            "quantity": 14,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "BHEL.NS": [
+        {
+            "purchase_price": 229.67,
+            "quantity": 65,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "VEDL.NS": [
+        {
+            "purchase_price": 454.4,
+            "quantity": 33,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "FORTIS.NS": [
+        {
+            "purchase_price": 977.65,
+            "quantity": 15,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "LICHSGFIN.NS": [
+        {
+            "purchase_price": 571.75,
+            "quantity": 26,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "CUMMINSIND.NS": [
+        {
+            "purchase_price": 4050.8,
+            "quantity": 3,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "YESBANK.NS": [
+        {
+            "purchase_price": 21.01,
+            "quantity": 713,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "CGPOWER.NS": [
+        {
+            "purchase_price": 791.35,
+            "quantity": 18,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "ADANIGREEN.NS": [
+        {
+            "purchase_price": 986.7,
+            "quantity": 15,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "PNBHOUSING.NS": [
+        {
+            "purchase_price": 835.3,
+            "quantity": 17,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "HINDPETRO.NS": [
+        {
+            "purchase_price": 399.85,
+            "quantity": 37,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "SAIL.NS": [
+        {
+            "purchase_price": 132.79,
+            "quantity": 112,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "ADANIPORTS.NS": [
+        {
+            "purchase_price": 1395.2,
+            "quantity": 10,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "COALINDIA.NS": [
+        {
+            "purchase_price": 394.75,
+            "quantity": 37,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "LUPIN.NS": [
+        {
+            "purchase_price": 2046.0,
+            "quantity": 7,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "DALBHARAT.NS": [
+        {
+            "purchase_price": 2415.0,
+            "quantity": 6,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "MAZDOCK.NS": [
+        {
+            "purchase_price": 2924.9,
+            "quantity": 5,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "LTIM.NS": [
+        {
+            "purchase_price": 5341.5,
+            "quantity": 2,
+            "purchase_date": "2025-09-15"
+        }
+    ],
+    "ADANIENSOL.NS": [
+        {
+            "purchase_price": 838.1,
+            "quantity": 17,
+            "purchase_date": "2025-09-16"
+        }
+    ],
+    "TATATECH.NS": [
+        {
+            "purchase_price": 711.6,
+            "quantity": 21,
+            "purchase_date": "2025-09-16"
+        }
+    ]
+}
