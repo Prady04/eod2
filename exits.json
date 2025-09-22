@@ -78,5 +78,37 @@
         "purchase_date": "2025-09-09",
         "sell_price": 1127.5,
         "sell_date": "2025-09-17"
+    },
+    {
+        "symbol": "BEL.NS",
+        "quantity": 38,
+        "purchase_price": 391.6,
+        "purchase_date": "2025-07-21",
+        "sell_price": 412.1000061035156,
+        "sell_date": "2025-09-18"
+    },
+    {
+        "symbol": "WIPRO.NS",
+        "quantity": 60,
+        "purchase_price": 246.05,
+        "purchase_date": "2025-08-04",
+        "sell_price": 259.0,
+        "sell_date": "2025-09-18"
+    },
+    {
+        "symbol": "ADANIENT.NS",
+        "quantity": 6,
+        "purchase_price": 2487.1,
+        "purchase_date": "2025-07-31",
+        "sell_price": 2617.0,
+        "sell_date": "2025-09-22"
+    },
+    {
+        "symbol": "ADANIPORTS.NS",
+        "quantity": 11,
+        "purchase_price": 1358.0999755859375,
+        "purchase_date": "2025-08-06",
+        "sell_price": 1447.5,
+        "sell_date": "2025-09-22"
     }
 ]

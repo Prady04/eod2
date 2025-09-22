@@ -27,13 +27,6 @@
             "purchase_date": "2025-07-18"
         }
     ],
-    "BEL.NS": [
-        {
-            "purchase_price": 391.6,
-            "quantity": 38,
-            "purchase_date": "2025-07-21"
-        }
-    ],
     "RELIANCE.NS": [
         {
             "purchase_price": 1427.0,
@@ -69,31 +62,10 @@
             "purchase_date": "2025-07-28"
         }
     ],
-    "ADANIENT.NS": [
-        {
-            "purchase_price": 2487.1,
-            "quantity": 6,
-            "purchase_date": "2025-07-31"
-        }
-    ],
-    "WIPRO.NS": [
-        {
-            "purchase_price": 246.05,
-            "quantity": 60,
-            "purchase_date": "2025-08-04"
-        }
-    ],
     "ONGC.NS": [
         {
             "purchase_price": 234.83,
             "quantity": 63,
-            "purchase_date": "2025-08-06"
-        }
-    ],
-    "ADANIPORTS.NS": [
-        {
-            "purchase_price": 1358.0999755859375,
-            "quantity": 11,
             "purchase_date": "2025-08-06"
         }
     ],
@@ -207,6 +179,34 @@
             "purchase_price": 2493.60009765625,
             "quantity": 6,
             "purchase_date": "2025-09-17"
+        }
+    ],
+    "APOLLOHOSP.NS": [
+        {
+            "purchase_price": 7885.0,
+            "quantity": 1,
+            "purchase_date": "2025-09-18"
+        }
+    ],
+    "NESTLEIND.NS": [
+        {
+            "purchase_price": 1202.199951171875,
+            "quantity": 12,
+            "purchase_date": "2025-09-18"
+        }
+    ],
+    "BAJAJ-AUTO.NS": [
+        {
+            "purchase_price": 9099.0,
+            "quantity": 1,
+            "purchase_date": "2025-09-22"
+        }
+    ],
+    "WIPRO.NS": [
+        {
+            "purchase_price": 250.8800048828125,
+            "quantity": 59,
+            "purchase_date": "2025-09-22"
         }
     ]
 }
