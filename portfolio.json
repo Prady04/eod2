@@ -208,5 +208,12 @@
             "quantity": 59,
             "purchase_date": "2025-09-22"
         }
+    ],
+    "HEROMOTOCO.NS": [
+        {
+            "purchase_price": 5323.5,
+            "quantity": 2,
+            "purchase_date": "2025-09-23"
+        }
     ]
 }
