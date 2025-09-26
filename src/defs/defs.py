@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import time
 import logging
 import os
 import re
@@ -8,14 +9,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from typing import Dict, List, Optional, Tuple, Type, Union
-from zoneinfo import ZoneInfo
+import itertools
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
+try:
+    import httpx
+except ModuleNotFoundError:
+    exit("Please run `pip install -U nse[server]`")
 
 import numpy as np
 import pandas as pd
-import requests
 import tzlocal
 from nse import NSE
-from requests.exceptions import ChunkedEncodingError
 
 from defs.Config import Config
 import win32com.client
@@ -39,12 +48,18 @@ def configure_logger():
 
     file_handler.setLevel(logging.WARNING)
 
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(levelname)s: %(asctime)s - %(name)s - %(message)s - EOD2 v%(eod_v)s - NSE v%(nse_v)s - %(last_update)s",
-            defaults=meta_info,
+    try:
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(levelname)s: %(asctime)s - %(name)s - %(message)s - EOD2 v%(eod_v)s - NSE v%(nse_v)s - %(last_update)s",
+                defaults=meta_info,
+            )
         )
-    )
+    except TypeError:
+        # Python 3.8 and 3.9 - No support for defaults parameter.
+        file_handler.setFormatter(
+            logging.Formatter("%(levelname)s: %(asctime)s - %(name)s - %(message)s")
+        )
 
     logging.basicConfig(
         format="%(levelname)s: %(asctime)s - %(name)s - %(message)s",
@@ -52,6 +67,17 @@ def configure_logger():
         level=logging.INFO,
         handlers=(stream_handler, file_handler),
     )
+
+
+def version_checker(version: str, major: int, minor: int, patch: int) -> bool:
+    """
+    Return True if major and minor match, and patch is equal or higher.
+    """
+    v_major, v_minor, v_patch = map(int, version.split("."))
+
+    if v_major == major and v_minor == minor:
+        return v_patch >= patch
+    return False
 
 
 def load_module(module_str: str) -> Union[ModuleType, Type]:
@@ -117,7 +143,7 @@ class Dates:
             logger.info("All Up To Date")
             return False
 
-        if self.dt.day == curTime.day and curTime.hour < 18:
+        if self.dt.day == curTime.day and curTime.hour < 16:
             # Display the users local time
             local_time = curTime.replace(hour=19, minute=0).astimezone(tz_local)
 
@@ -139,6 +165,88 @@ def log_unhandled_exception(exc_type, exc_value, exc_traceback):
     )
 
 
+def retry(max_retries=10, base_wait=2, max_wait=10):
+    """
+    Decorator that retries a function or method with exponential backoff
+    in case of exceptions.
+
+    :param max_retries: The maximum number of retry attempts.
+    :type max_retries: int
+    :param base_wait: The initial delay in seconds before the first retry.
+    :type base_wait: float
+    :param max_wait: The maximum delay in seconds between retries.
+    :type max_wait: float
+
+    .. code::python
+
+        @retry(max_retries=5, base_wait=2, max_wait=60)
+        def your_function_or_method(*args, **kwargs):
+            # Your function or method logic goes here
+            pass
+
+    """
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            retries = 0
+
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except (TimeoutError, ConnectionError) as e:
+                    logger.info(f"Attempt {retries + 1} failed: {e}")
+
+                    # Calculate the wait time using exponential backoff
+                    wait = min(base_wait * (2**retries), max_wait)
+
+                    logger.info(f"Retrying in {wait} seconds...")
+                    time.sleep(wait)
+
+                    retries += 1
+                except Exception as e:
+                    logger.exception(f"An error occurred {e}")
+                    exit(1)
+
+            logger.exception(
+                f"Exceeded maximum retry attempts for {func.__name__}. Exiting."
+            )
+            exit(1)
+
+        return wrapper
+
+    return decorator
+
+
+@retry()
+def check_reports_update_status(nse) -> Dict[str, bool]:
+    """Check if all daily reports has been updated for NSE."""
+
+    result = {
+        "CM-UDIFF-BHAVCOPY-CSV": False,
+        "CM-BHAVDATA-FULL": False,
+        "INDEX-SNAPSHOT": False,
+    }
+
+    cm_data = nse.fetch_daily_reports_file_metadata(segment="CM")
+    index_data = nse.fetch_daily_reports_file_metadata(segment="INDEX")
+
+    if not (cm_data["CurrentDay"] or index_data["CurrentDay"]):
+        return result
+
+    cm_report_date = datetime.strptime(cm_data["currentDate"], "%d-%b-%Y")
+
+    if cm_report_date != dates.today.replace(tzinfo=None):
+        exit("Market is closed today")
+
+    for dct in itertools.chain(cm_data["CurrentDay"], index_data["CurrentDay"]):
+        key = dct["fileKey"]
+
+        if key in result:
+            result[key] = True
+
+    return result
+
+
 def getMuhuratHolidayInfo(holidays: Dict[str, List[dict]]) -> dict:
     for lst in holidays.values():
         for dct in lst:
@@ -148,21 +256,21 @@ def getMuhuratHolidayInfo(holidays: Dict[str, List[dict]]) -> dict:
     return {}
 
 
+@retry()
 def downloadSpecialSessions() -> Tuple[datetime, ...]:
     base_url = "https://raw.githubusercontent.com/BennyThadikaran/eod2_data"
 
     err_text = "special_sessions.txt download failed. Please try again later."
 
     try:
-        res = requests.get(f"{base_url}/main/special_sessions.txt")
-    except requests.exceptions.Timeout:
-        logger.exception(
-            "Network timeout while trying to download special_sessions. Please try again later."
-        )
-        exit()
+        res = httpx.get(f"{base_url}/main/special_sessions.txt", timeout=30)
+    except httpx.ConnectTimeout as e:
+        raise TimeoutError(e)
+    except httpx.ConnectError as e:
+        raise ConnectionError(e)
 
-    if not res.ok:
-        logger.exception(f"{err_text} {res.status_code}: {res.reason}")
+    if not res.status_code == httpx.codes.OK:
+        logger.exception(f"{err_text} {res.status_code}: {res.reason_phrase}")
         exit()
 
     return tuple(
@@ -174,11 +282,7 @@ def downloadSpecialSessions() -> Tuple[datetime, ...]:
 def getHolidayList(nse: NSE):
     """Makes a request for NSE holiday list for the year.
     Saves and returns the holiday Object"""
-    try:
-        data = nse.holidays(type=nse.HOLIDAY_TRADING)
-    except Exception as e:
-        logger.warning(f"Failed to download holidays - {e}")
-        exit()
+    data = nse.holidays(type=nse.HOLIDAY_TRADING)
 
     # CM pertains to capital market or equity holidays
     data["CM"].append(getMuhuratHolidayInfo(data))
@@ -189,7 +293,7 @@ def getHolidayList(nse: NSE):
     return data
 
 
-def checkForHolidays(nse: NSE, special_sessions: Tuple[datetime, ...]):
+def checkForHolidays(nse: NSE):
     """Returns True if current date is a holiday.
     Exits the script if today is a holiday"""
 
@@ -198,7 +302,9 @@ def checkForHolidays(nse: NSE, special_sessions: Tuple[datetime, ...]):
     # the current date for which data is being synced
     curDt = dates.dt.strftime("%d-%b-%Y")
 
-    if dates.dt in special_sessions:
+    if dates.dt.replace(tzinfo=None) in tuple(
+        datetime.fromisoformat(x) for x in meta.get("special_sessions", [])
+    ):
         return False
 
     # no holiday list or year has changed or today is a holiday
@@ -212,9 +318,7 @@ def checkForHolidays(nse: NSE, special_sessions: Tuple[datetime, ...]):
             meta["year"] = dates.dt.year
             hasLatestHolidays = True
 
-    isMuhurat = (
-        curDt in meta["holidays"] and "Laxmi Pujan" in meta["holidays"][curDt]
-    )
+    isMuhurat = curDt in meta["holidays"] and "Laxmi Pujan" in meta["holidays"][curDt]
 
     if isMuhurat:
         return False
@@ -223,7 +327,7 @@ def checkForHolidays(nse: NSE, special_sessions: Tuple[datetime, ...]):
         return True
 
     if curDt in meta["holidays"]:
-        logger.info(f'{curDt} Market Holiday: {meta["holidays"][curDt]}')
+        logger.info(f"{curDt} Market Holiday: {meta['holidays'][curDt]}")
         return True
 
     return False
@@ -236,25 +340,19 @@ def validateNseActionsFile(nse: NSE):
     The actionsFile pertains to Bonus, Splits, dividends etc.
     """
 
-    for action in ("equity", "sme"):
-        segment = "sme" if action == "sme" else "equities"
+    for action in ("equity", "sme", "mf"):
+        segment = "equities" if action == "equity" else action
 
         if f"{action}Actions" not in meta:
-            logger.info(f"Downloading NSE {action.upper()} actions")
+            logger.warning(f"Downloading NSE {action.upper()} actions")
 
-            try:
-                meta[f"{action}Actions"] = nse.actions(
-                    segment=segment,
-                    from_date=dates.dt,
-                    to_date=dates.dt + timedelta(8),
-                )
-            except Exception as e:
-                logger.warning(f"Failed to download {action} actions - {e}")
-                exit()
+            meta[f"{action}Actions"] = nse.actions(
+                segment=segment,
+                from_date=dates.dt,
+                to_date=dates.dt + timedelta(8),
+            )
 
-            meta[f"{action}ActionsExpiry"] = (
-                dates.dt + timedelta(7)
-            ).isoformat()
+            meta[f"{action}ActionsExpiry"] = (dates.dt + timedelta(7)).isoformat()
         else:
             expiryDate = datetime.fromisoformat(
                 meta[f"{action}ActionsExpiry"]
@@ -266,17 +364,13 @@ def validateNseActionsFile(nse: NSE):
             if dates.dt < expiryDate:
                 continue
 
-            logger.info(f"Updating NSE {action.upper()} actions")
+            logger.warning(f"Updating NSE {action.upper()} actions")
 
-            try:
-                meta[f"{action}Actions"] = nse.actions(
-                    segment=segment,
-                    from_date=expiryDate,
-                    to_date=expiryDate + timedelta(8),
-                )
-            except Exception as e:
-                logger.warning(f"Failed to update {action} actions - {e}")
-                exit()
+            meta[f"{action}Actions"] = nse.actions(
+                segment=segment,
+                from_date=expiryDate,
+                to_date=expiryDate + timedelta(8),
+            )
 
             meta[f"{action}ActionsExpiry"] = newExpiry
 
@@ -332,9 +426,7 @@ def updatePendingDeliveryData(nse: NSE, date: str):
             if not DAILY_FILE.exists():
                 continue
 
-            dailyDf = pd.read_csv(
-                DAILY_FILE, index_col="Date", parse_dates=["Date"]
-            )
+            dailyDf = pd.read_csv(DAILY_FILE, index_col="Date", parse_dates=["Date"])
 
             if dt not in dailyDf.index:
                 continue
@@ -405,7 +497,7 @@ def updateAmiBrokerRecords(nse: NSE):
                 bhavFile.rename(bhavFolder / bhavFile.name)
             except (RuntimeError, FileNotFoundError):
                 continue
-            except ChunkedEncodingError as e:
+            except Exception as e:
                 logger.warning(f"{e} - Please try again.")
                 exit()
 
@@ -596,14 +688,13 @@ def updateNseEOD(bhavFile: Path, deliveryFile: Optional[Path]):
             try:
                 OLD_FILE.rename(SYM_FILE)
             except FileNotFoundError:
-                logger.warning(
-                    f"Renaming daily/{old}.csv to {new}.csv. No such file."
-                )
+                logger.warning(f"Renaming daily/{old}.csv to {new}.csv. No such file.")
 
-            logger.info(f"Name Changed: {old} to {new}")
+            logger.warning(f"Name Changed: {old} to {new}")
 
         updateNseSymbol(
             SYM_FILE,
+            t.SctySrs,
             t.OpnPric,
             t.HghPric,
             t.LwPric,
@@ -619,7 +710,7 @@ def updateNseEOD(bhavFile: Path, deliveryFile: Optional[Path]):
     logger.info("EOD sync complete")
 
 
-def updateNseSymbol(symFile: Path, open, high, low, close, volume, trdCnt, dq):
+def updateNseSymbol(symFile: Path, series, open, high, low, close, volume, trdCnt, dq):
     "Appends EOD stock data to end of file"
 
     text = b""
@@ -636,20 +727,18 @@ def updateNseSymbol(symFile: Path, open, high, low, close, volume, trdCnt, dq):
     avgTrdCnt = "" if trdCnt == "" else round(volume / trdCnt, 2)
 
     text += bytes(
-        f"{dates.pandasDt},{open},{high},{low},{close},{volume},{trdCnt},{avgTrdCnt},{dq}\n",
+        f"{dates.pandasDt},{open},{high},{low},{close},{volume},{series},{trdCnt},{avgTrdCnt},{dq}\n",
         encoding="utf-8",
     )
-    try:
-        with symFile.open("ab") as f:
-            f.write(text)
-    except Exception as e:
-        print(e)
-        pass
+
+    with symFile.open("ab") as f:
+        f.write(text)
 
     if hook and hasattr(hook, "updateNseSymbol"):
         hook.updateNseSymbol(
             dates.dt,
             symFile.stem,
+            series,
             open,
             high,
             low,
@@ -659,6 +748,46 @@ def updateNseSymbol(symFile: Path, open, high, low, close, volume, trdCnt, dq):
             avgTrdCnt,
             dq,
         )
+
+
+def check_special_sessions(nse: NSE) -> bool:
+    last_update = meta.get("special_sessions_last_update", None)
+
+    if last_update is None:
+        last_update = (dates.dt - timedelta(5)).replace(tzinfo=None)
+        meta["special_sessions_last_update"] = dates.today.date().isoformat()
+        meta["special_sessions"] = []
+    else:
+        last_update = datetime.fromisoformat(last_update)
+
+    circulars = nse.circulars(
+        dept_code="CMTR",
+        from_date=last_update,
+        to_date=dates.today.replace(tzinfo=None),
+    )
+    updated = False
+
+    for circular in circulars["data"]:
+        subject = circular["sub"]
+
+        if "Special Live" not in subject:
+            continue
+
+        res = dateRegex.search(circular)
+
+        if res:
+            dt = datetime.strptime(res.group(), "%A, %B %d, %Y").date().isoformat()
+            meta["special_sessions"].append(dt)
+
+            # Set to warning level for test period to log to error.log file
+            logger.warning(f"Special Live Trading Session on {res.group()}")
+            updated = True
+        else:
+            logger.warning(
+                f"Unable to parse date from circular dated {circular['cirDisplayDate']}: {circular['sub']}"
+            )
+
+    return updated
 
 
 def getSplit(sym, string):
@@ -690,7 +819,7 @@ def getBonus(sym, string):
 def makeAdjustment(
     symbol: str,
     adjustmentFactor: float,
-    prev_commit: Optional[dict[str, Union[pd.DataFrame, Path]]] = None,
+    prev_commit: Optional[Dict[str, Union[pd.DataFrame, Path]]] = None,
 ) -> Optional[Tuple[pd.DataFrame, Path]]:
     """Makes adjustment to stock data prior to ex date,
     returning a tuple of pandas pd.DataFrame and filename"""
@@ -735,18 +864,21 @@ def makeAdjustment(
     return (df, file)
 
 
-def updateIndice(sym, open, high, low, close, volume):
+def updateIndice(sym, open, high, low, close, volume, pe):
     "Appends Index EOD data to end of file"
+
+    if "/" in sym or ":" in sym:
+        sym = sym.replace("/", "-").replace(":", "-")
 
     file = DAILY_FOLDER / f"{sym.lower()}.csv"
 
     text = b""
 
     if not file.is_file():
-        text += headerText
+        text += indexHeaderText
 
     text += bytes(
-        f"{dates.pandasDt},{open},{high},{low},{close},{volume},,,\n",
+        f"{dates.pandasDt},{open},{high},{low},{close},{volume},{pe},,,,\n",
         encoding="utf-8",
     )
 
@@ -808,16 +940,17 @@ def updateIndexEOD(file: Path):
         "Low Index Value",
         "Closing Index Value",
         "Volume",
+        "P/E",
     ]
 
     # replace all '-' in columns with 0
     for col in cols:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    for sym in indices:
-        open, high, low, close, volume = df.loc[sym, cols]
+    for sym in df.index:
+        open, high, low, close, volume, pe = df.loc[sym, cols]
 
-        updateIndice(sym, open, high, low, close, volume)
+        updateIndice(sym, open, high, low, close, volume, pe)
 
     pe = float(df.at["Nifty 50", "P/E"])
 
@@ -837,7 +970,7 @@ def adjustNseStocks():
 
     dtStr = dates.dt.strftime("%d-%b-%Y")
 
-    for actions in ("equityActions", "smeActions"):
+    for actions in ("equityActions", "smeActions", "mfActions"):
         # Store all pd.DataFrames with associated files names to be saved to file
         # if no error occurs
         df_commits: dict[str, dict[str, Union[pd.DataFrame, Path]]] = {}
@@ -857,13 +990,24 @@ def adjustNseStocks():
                 if series in ("SM", "ST"):
                     sym += "_sme"
 
-                if ("split" in purpose or "splt" in purpose) and ex == dtStr:
-                    i = purpose.index("split" if "split" in purpose else "splt")
+                if (
+                    "split" in purpose
+                    or "splt" in purpose
+                    or "consolidation" in purpose
+                ) and ex == dtStr:
+                    if "consolidation" in purpose:
+                        error_context = f"{sym} - consolidation - {dtStr}"
+                        i = purpose.index("consolidation")
+                    else:
+                        error_context = f"{sym} - Split - {dtStr}"
+                        i = purpose.index("spl")
 
-                    error_context = f"{sym} - Split - {dtStr}"
                     adjustmentFactor = getSplit(sym, purpose[i:])
 
                     if adjustmentFactor is None:
+                        logger.warning(
+                            f"Possible adjustment failure: SPLIT - {sym} - {purpose} - exDate: {dtStr}"
+                        )
                         continue
 
                     commit = makeAdjustment(
@@ -881,11 +1025,22 @@ def adjustNseStocks():
                         post_commits.append((sym, adjustmentFactor))
                         logger.info(f"{sym}: {purpose}")
 
-                if "bonus" in purpose and "deb" not in purpose and ex == dtStr:
+                if "bonus" in purpose and ex == dtStr:
+                    if (
+                        "deb" in purpose
+                        or "pref" in purpose
+                        or "ncrps" in purpose
+                        or "dvr" in purpose
+                    ):
+                        continue
+
                     error_context = f"{sym} - Bonus - {dtStr}"
                     adjustmentFactor = getBonus(sym, purpose)
 
                     if adjustmentFactor is None:
+                        logger.warning(
+                            f"Possible adjustment failure: BONUS - {sym} - {purpose} - exDate: {dtStr}"
+                        )
                         continue
 
                     commit = makeAdjustment(
@@ -901,7 +1056,7 @@ def adjustNseStocks():
                             df_commits[sym] = {"file": file, "df": df}
 
                         post_commits.append((sym, adjustmentFactor))
-                        logger.info(f"{sym}: {purpose}")
+                        logger.warning(f"{sym}: {purpose}")
 
         except Exception as e:
             logging.critical(f"Adjustment Error - Context {error_context}")
@@ -927,16 +1082,16 @@ def adjustNseStocks():
                 continue
 
             close = df.at[df.index[idx], "Close"]
-            prev_close = df.at[df.index[idx - 1], "Close"] # type: ignore
-            if (prev_close):
-                diff = close / prev_close
+            prev_close = df.at[df.index[idx - 1], "Close"]
 
-                if diff > 1.5 or diff < 0.67:
-                    context = f"Current Close {close}, Previous Close {prev_close}"
+            diff = close / prev_close
 
-                    logger.warning(
-                        f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
-                    )
+            if diff > 1.5 or diff < 0.67:
+                context = f"Current Close {close}, Previous Close {prev_close}"
+
+                logger.warning(
+                    f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
+                )
 
             df.to_csv(file)
 
@@ -1063,6 +1218,7 @@ if __name__ != "__main__":
     ISIN_FILE = DIR / "eod2_data" / "isin.csv"
     AMIBROKER_FOLDER = DIR / "eod2_data" / "amibroker"
     META_FILE = DIR / "eod2_data" / "meta.json"
+    SPECIAL_SESSIONS_FILE = DIR / "eod2_data/special_sessions.txt"
 
     hasLatestHolidays = False
 
@@ -1070,9 +1226,13 @@ if __name__ != "__main__":
 
     bonusRegex = re.compile(r"(\d+) ?: ?(\d+)")
 
+    dateRegex = re.compile(r"\b[A-Za-z]+, [A-Za-z]+ \d{2}, \d{4}\b")
+
     headerText = (
-        b"Date,Open,High,Low,Close,Volume,TOTAL_TRADES,QTY_PER_TRADE,DLV_QTY\n"
+        b"Date,Open,High,Low,Close,Volume,Series,TOTAL_TRADES,QTY_PER_TRADE,DLV_QTY\n"
     )
+
+    indexHeaderText = b"Date,Open,High,Low,Close,Volume,P/E,Series,TOTAL_TRADES,QTY_PER_TRADE,DLV_QTY\n"
 
     logger = logging.getLogger(__name__)
 

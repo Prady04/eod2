@@ -215,5 +215,12 @@
             "quantity": 2,
             "purchase_date": "2025-09-23"
         }
+    ],
+    "TATAMOTORS.NS": [
+        {
+            "purchase_price": 671.5499877929688,
+            "quantity": 22,
+            "purchase_date": "2025-09-26"
+        }
     ]
 }

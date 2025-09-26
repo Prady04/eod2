@@ -76,65 +76,69 @@ def printResult():
 
 daily = DIR / "eod2_data" / "daily"
 
-dtypeMismatchText = (
-    "{}: Column type Mismatch in {}. Expected float64 or int64. Got {}"
-)
+dtypeMismatchText = "{}: Column type Mismatch in {}. Expected float64 or int64. Got {}"
 columnMismatchText = "{}: Column Length Mismatch. Expect {} got {}"
-indexMismatchText = (
-    "{}: Pandas Index type Mismatch. Expect datetime64[ns] got {}"
-)
+indexMismatchText = "{}: Pandas Index type Mismatch. Expect datetime64[ns] got {}"
 hasNansText = "{}: Column {} has NAN values"
 
-for child in daily.iterdir():
+for file in daily.iterdir():
+    # Only indices have spaces in file names - bit of a cheat
+    is_index_file = " " in file.name
+
     try:
-        df = pd.read_csv(child, index_col="Date", parse_dates=True)
+        df = pd.read_csv(file, index_col="Date", parse_dates=True)
     except Exception as e:
         # Catch pandas or file parsing errors
-        exceptionsList.append(f"{child.name.upper()}: {e!r}")
+        exceptionsList.append(f"{file.name.upper()}: {e!r}")
         continue
 
     # File is empty or only has column headings
     if df.shape[0] < 1:
-        print(f"daily/{child.name} is empty.")
+        print(f"daily/{file.name} is empty.")
         continue
 
     # Catch Type errors in Datetime index
     if df.index.dtype != "datetime64[ns]":
-        txt = indexMismatchText.format(
-            child.name.upper().ljust(15), df.index.dtype
-        )
+        txt = indexMismatchText.format(file.name.upper().ljust(15), df.index.dtype)
 
         indexMismatchList.append(txt)
 
     columns = df.columns
     colLength = len(columns)
+    expected_col_length = 10 if is_index_file else 9
 
     # Catch column length errors
-    if colLength != 8:
+    if colLength != expected_col_length:
         txt = columnMismatchText.format(
-            child.name.upper().ljust(15), 5, colLength
+            file.name.upper().ljust(15), expected_col_length, colLength
         )
 
         colMismatchList.append(txt)
 
     # Catch column dataType mismatch
     for col in df.columns:
+        if col == "Series":
+            continue
+
         if df[col].dtype not in ("float64", "int64"):
             txt = dtypeMismatchText.format(
-                child.name.upper().ljust(15), col, df[col].dtype
+                file.name.upper().ljust(15), col, df[col].dtype
             )
 
             typeMismatchList.append(txt)
 
     for col in ("Open", "High", "Low", "Close", "Volume"):
         if df[col].hasnans:
-            hasNansList.append(
-                hasNansText.format(child.name.upper().ljust(15), col)
-            )
+            # Only indices have spaces in file names - bit of a cheat
+            # For indices we only check the Close values for Nan
+            if is_index_file and col != "Close":
+                continue
+
+            hasNansList.append(hasNansText.format(file.name.upper().ljust(15), col))
 
     # Catch duplicate entries in file
     if df.index.has_duplicates:
-        duplicatesList.append(child.name.upper())
+        duplicatesList.append(file.name.upper())
 
     if getErrorCount() >= ERROR_THRESHOLD:
         break

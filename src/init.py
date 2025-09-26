@@ -2,12 +2,34 @@ import logging
 import sys
 from argparse import ArgumentParser
 
+from httpx import ConnectError
 from nse import NSE
 
 from defs import defs
 from defs.utils import writeJson
 
+
 logger = logging.getLogger(__name__)
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+if not defs.version_checker(NSE.__version__, major=1, minor=2, patch=4):
+    logger.warning("Require NSE version 1.2.4. Run `pip install -U nse`")
+    exit()
+
+data_version = defs.meta.get("data-version", None)
+
+if data_version != defs.config.EXPECTED_DATA_VERSION:
+    if (defs.DIR.parent / ".git").exists():
+        update_url = "https://github.com/BennyThadikaran/eod2/wiki/Installation#updating-the-git-repo\n"
+
+        logger.warning(
+            f"eod2_data folder needs an update.\n\nFollow instructions at below link to update\n{update_url}"
+        )
+    else:
+        logger.warning(
+            "eod2_data folder needs an update. Run `setup_data.py` to update"
+        )
 
 # Set the sys.excepthook to the custom exception handler
 sys.excepthook = defs.log_unhandled_exception
@@ -27,21 +49,21 @@ group.add_argument(
 args = parser.parse_args()
 
 if args.version:
-    exit(f"EOD2 init.py: version {defs.config.VERSION}")
+    exit(
+        f"EOD2 init.py: v{defs.config.VERSION} | eod2_data: v{defs.meta.get('data-version', None)}"
+    )
 
 if args.config:
     exit(str(defs.config))
 
-# download the latest special_sessions.txt from eod2_data repo
-special_sessions = defs.downloadSpecialSessions()
-
 try:
-    nse = NSE(defs.DIR)
-except (TimeoutError, ConnectionError) as e:
-    logger.warning(
-        f"Network error connecting to NSE - Please try again later. - {e!r}"
-    )
+    nse = NSE(defs.DIR, server=True)
+except (TimeoutError, ConnectionError, ConnectError) as e:
+    logger.warning(f"Network error connecting to NSE - Please try again later. - {e!r}")
     exit()
+
+if defs.check_special_sessions(nse):
+    writeJson(defs.META_FILE, defs.meta)
 
 if defs.config.AMIBROKER and not defs.isAmiBrokerFolderUpdated():
     defs.updateAmiBrokerRecords(nse)
@@ -63,7 +85,7 @@ while True:
         nse.exit()
         exit()
 
-    if defs.checkForHolidays(nse, special_sessions):
+    if defs.checkForHolidays(nse):
         defs.meta["lastUpdate"] = defs.dates.lastUpdate = defs.dates.dt
         writeJson(defs.META_FILE, defs.meta)
         continue
@@ -74,6 +96,25 @@ while True:
     # Download all files and validate for errors
     logger.info("Downloading Files")
 
+    report_status = None
+
+    if defs.dates.dt.date() == defs.dates.today.date():
+        report_status = defs.check_reports_update_status(nse)
+
+        required_reports = {
+            "CM-UDIFF-BHAVCOPY-CSV": "Equity Bhavcopy not yet updated.",
+            "INDEX-SNAPSHOT": "Indices report not yet updated.",
+            "CM-BHAVDATA-FULL": "Delivery Report Unavailable. Will retry in subsequent sync",
+        }
+
+        for key, msg in required_reports.items():
+            if not report_status.get(key):
+                logger.warning(msg)
+
+                if key != "CM-BHAVDATA-FULL":
+                    nse.exit()
+                    exit()
+
     try:
         # NSE bhav copy
         BHAV_FILE = nse.equityBhavcopy(defs.dates.dt)
@@ -83,9 +124,7 @@ while True:
     except (RuntimeError, Exception) as e:
         if defs.dates.dt.weekday() == 5:
             if defs.dates.dt != defs.dates.today:
-                logger.info(
-                    f'{defs.dates.dt:%a, %d %b %Y}: Market Closed\n{"-" * 52}'
-                )
+                logger.info(f"{defs.dates.dt:%a, %d %b %Y}: Market Closed\n{'-' * 52}")
 
                 # On Error, dont exit on Saturdays, if trying to sync past dates
                 continue
@@ -100,15 +139,18 @@ while True:
         logger.warning(e)
         exit()
 
-    try:
-        # NSE delivery
-        DELIVERY_FILE = nse.deliveryBhavcopy(defs.dates.dt)
-    except (RuntimeError, Exception):
-        defs.meta["DLV_PENDING_DATES"].append(defs.dates.dt.isoformat())
+    if report_status is None or report_status["CM-BHAVDATA-FULL"]:
+        try:
+            # NSE delivery
+            DELIVERY_FILE = nse.deliveryBhavcopy(defs.dates.dt)
+        except (RuntimeError, Exception):
+            defs.meta["DLV_PENDING_DATES"].append(defs.dates.dt.isoformat())
+            DELIVERY_FILE = None
+            logger.warning("Delivery Report Unavailable. Will retry in subsequent sync")
+
+    else:
         DELIVERY_FILE = None
-        logger.warning(
-            "Delivery Report Unavailable. Will retry in subsequent sync"
-        )
+        defs.meta["DLV_PENDING_DATES"].append(defs.dates.dt.isoformat())
 
     try:
         defs.updateNseEOD(BHAV_FILE, DELIVERY_FILE)
@@ -156,4 +198,4 @@ while True:
     defs.meta["lastUpdate"] = defs.dates.lastUpdate = defs.dates.dt
     writeJson(defs.META_FILE, defs.meta)
 
-    logger.info(f'{defs.dates.dt:%d %b %Y}: Done\n{"-" * 52}')
+    logger.info(f"{defs.dates.dt:%d %b %Y}: Done\n{'-' * 52}")

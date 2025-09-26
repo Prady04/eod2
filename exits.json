@@ -110,5 +110,13 @@
         "purchase_date": "2025-08-06",
         "sell_price": 1447.5,
         "sell_date": "2025-09-22"
+    },
+    {
+        "symbol": "ADANIENT.NS",
+        "quantity": 6,
+        "purchase_price": 2404.800048828125,
+        "purchase_date": "2025-09-26",
+        "sell_price": 2539.5,
+        "sell_date": "2025-09-26"
     }
 ]
