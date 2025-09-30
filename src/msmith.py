@@ -349,14 +349,6 @@ def print_on_screen(df):
        
    
     
-    '''print(Fore.GREEN,Style.BRIGHT,tabulate(nps.query('Price_Percentage_chg>-1.5 and Price_Percentage_chg < 1.5'),headers=nps.keys(),tablefmt='psql', showindex=False))
-    nps = nps.query('Price_Percentage_chg>-1.5 and Price_Percentage_chg < 1.5')
-    nps.reset_index(inplace = True)
-    nps=nps.rename({'Symbol': 'nsecode'}, axis='columns')
-    strs = ",".join(nps['Symbol'])
-    strs=strs.replace("'", '')
-    strs = strs.strip('[]')
-    print(strs)'''
 
 
 import shutil
@@ -394,24 +386,29 @@ def msmith():
     log.debug("Done with login")
     print('Login Success')
     df1 = fetch_mm5(driver)
-    log.debug('mm5 fetched: '+ str(len(df1)))
-    print('done with mm5')
+    if df1 is not None:
+        log.debug('mm5 fetched: '+ str(len(df1)))
+        print('done with mm5')
+        
     df2 = fetch_mm1(driver)
-    log.debug('mm1 fetched : '+ str(len(df2)))
-    print('done with mm1')
+    if df2 is not None:
+        log.debug('mm1 fetched : '+ str(len(df2)))
+        
     nps = fetch_nps(driver) 
-    log.debug('nps fetched: '+ str(len(nps)))
-    print('done with ipo')
+    if nps is not None:
+        log.debug('nps fetched: '+ str(len(nps)))
+        print('done with ipo')
     
 
-    if not df1.empty and (len(df1) > 0):
-        df = df1        
-        if len(df2)>0:
-            df = pd.concat([df,df2]) 
+    if df1 is not None and not df1.empty and (len(df1) > 0):
+        df = df1 
+        if df2 is not None and not df2.empty and (len(df2) > 0):
+            df = pd.concat([df,df2])     
+    
     else:
-        if len(df2) >1:
-            df =df2
-            
+        if df2 is not None and not df2.empty and (len(df2) > 0):
+            df = df2
+   
     
     
     

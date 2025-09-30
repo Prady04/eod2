@@ -279,6 +279,7 @@ def downloadSpecialSessions() -> Tuple[datetime, ...]:
     )
 
 
+@retry()
 def getHolidayList(nse: NSE):
     """Makes a request for NSE holiday list for the year.
     Saves and returns the holiday Object"""
@@ -333,6 +334,7 @@ def checkForHolidays(nse: NSE):
     return False
 
 
+@retry()
 def validateNseActionsFile(nse: NSE):
     """Check if the NSE Corporate actions() file exists.
     If exists, check if the file is older than 7 days.
@@ -489,12 +491,16 @@ def updateAmiBrokerRecords(nse: NSE):
             continue
 
         bhavFolder = DIR / "nseBhav" / str(dt.year)
+
+        if not bhavFolder.is_dir():
+            bhavFolder.mkdir(parents=True)
+
         bhavFile = bhavFolder / f"BhavCopy_NSE_CM_0_0_0_{dt:%Y%m%d}_F_0000.csv"
 
         if not bhavFile.exists():
             try:
                 bhavFile = nse.equityBhavcopy(dt)
-                bhavFile.rename(bhavFolder / bhavFile.name)
+                bhavFile = bhavFile.rename(bhavFolder / bhavFile.name)
             except (RuntimeError, FileNotFoundError):
                 continue
             except Exception as e:
@@ -644,9 +650,7 @@ def updateNseEOD(bhavFile: Path, deliveryFile: Optional[Path]):
 
         if dlvDf is not None:
             if t.TckrSymb in dlvDf.index:
-                trdCnt, dq = dlvDf.loc[
-                    t.TckrSymb, [" NO_OF_TRADES", " DELIV_QTY"]
-                ]
+                trdCnt, dq = dlvDf.loc[t.TckrSymb, [" NO_OF_TRADES", " DELIV_QTY"]]
 
                 # BE and BZ series stocks are all delivery trades,
                 # so we use the volume
@@ -836,8 +840,6 @@ def makeAdjustment(
 
         df = pd.read_csv(file, index_col="Date", parse_dates=["Date"])
 
-    last = None
-
     # Remove timezone info as DataFrame index is not timezone aware
     dt = dates.dt.replace(tzinfo=None)
 
@@ -853,13 +855,16 @@ def makeAdjustment(
         last = df.iloc[idx:]
 
         df = df.iloc[:idx].copy()
+    else:
+        last = df.loc[dt:]
+        df = df.loc[:dt].copy()
+        idx = df.index.get_loc(df.index[-1])
 
     for col in ("Open", "High", "Low", "Close"):
         # nearest 0.05 = round(nu / 0.05) * 0.05
         df[col] = ((df[col] / adjustmentFactor / 0.05).round() * 0.05).round(2)
 
-    if last is not None:
-        df = pd.concat([df, last])
+    df = pd.concat([df, last])
 
     return (df, file)
 
@@ -929,10 +934,10 @@ def updateIndexEOD(file: Path):
         .split("\n")
     )
 
-    if any(config.ADDITIONAL_INDICES):
+    '''if any(config.ADDITIONAL_INDICES):
         indices.extend(
             [sym for sym in config.ADDITIONAL_INDICES if sym not in indices]
-        )
+        )'''
 
     cols = [
         "Open Index Value",
@@ -945,7 +950,7 @@ def updateIndexEOD(file: Path):
 
     # replace all '-' in columns with 0
     for col in cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna("")
 
     for sym in df.index:
         open, high, low, close, volume, pe = df.loc[sym, cols]
@@ -1073,24 +1078,23 @@ def adjustNseStocks():
 
             dt = dates.dt.replace(tzinfo=None)
 
-            try:
+            if dt in df.index:
                 idx = df.index.get_loc(dt)
-            except KeyError:
+
+                close = df.at[df.index[idx], "Close"]
+                prev_close = df.at[df.index[idx - 1], "Close"]
+
+                diff = close / prev_close
+
+                if diff > 1.5 or diff < 0.67:
+                    context = f"Current Close {close}, Previous Close {prev_close}"
+
+                    logger.warning(
+                        f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
+                    )
+            else:
                 logger.warning(
                     f"Unable to verify adjustment on {sym} - Please confirm manually. - {dates.dt}"
-                )
-                continue
-
-            close = df.at[df.index[idx], "Close"]
-            prev_close = df.at[df.index[idx - 1], "Close"]
-
-            diff = close / prev_close
-
-            if diff > 1.5 or diff < 0.67:
-                context = f"Current Close {close}, Previous Close {prev_close}"
-
-                logger.warning(
-                    f"WARN: Possible adjustment failure in {sym}: {context} - {dates.dt}"
                 )
 
             df.to_csv(file)

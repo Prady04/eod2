@@ -71,7 +71,6 @@ class Config:
     PLOT_ALINE_COLOR = "mediumseagreen"  # Arbitrary line (segment)
 
     WATCH = {"SECTORS": (DIR / "data/sectors.csv").resolve()}
-    ADDITIONAL_INDICES = []
     PRESET = {}
 
     def __init__(self) -> None:
@@ -86,8 +85,8 @@ class Config:
             self.__dict__.update(dct)
 
     # DO NOT EDIT BELOW
-    VERSION = "9.0.0"
-    EXPECTED_DATA_VERSION = 3.0
+    VERSION = "9.0.1"
+    EXPECTED_DATA_VERSION = 3.1
 
     def toList(self, filename: str):
         return (DIR / "data" / filename).read_text().strip().split("\n")
