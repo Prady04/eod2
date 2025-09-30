@@ -292,7 +292,9 @@ def write_to_db(df,idea):
                     pChange NUMERIC,
                     rs_rating INTEGER,
                     grp_rank INTEGER,
-                    dat DATETIME
+                    dat DATETIME,
+                    idea TEXT
+                    
                 
                 )
             ''')  
@@ -309,16 +311,15 @@ def write_to_db(df,idea):
                 #print('q3')  
             else:
                 skipped_symbols.append(row.Symbol) 
-                
+               
             
         except Exception as e:
             log.error(e)
-            print('Error in writetodb line 265')         
+            print('Error in writetodb')         
             pass
-        finally:
-            
-            conn.close()
-        return skipped_symbols 
+    if conn:
+        conn.close()
+    return skipped_symbols 
 
 def print_on_screen(df):
     from tabulate import tabulate
@@ -403,10 +404,6 @@ def msmith():
     print('done with ipo')
     
 
-
-    
-    
-   
     if not df1.empty and (len(df1) > 0):
         df = df1        
         if len(df2)>0:
@@ -424,9 +421,7 @@ def msmith():
 
     df.reset_index(inplace = True)
     df=df.rename({'Symbol': 'nsecode'}, axis='columns')
-    df.to_csv(f'C:\\python\\flexstart\\cache\\mm.csv') 
-    #shutil.copyfile('C:\\python\\flexstart\\cache\\mm.csv', 'C:\\Nshare\\mm.csv')
-   
+    
     if len(nps)>0:
         df = pd.concat([df,nps])
         print_on_screen(nps)
@@ -435,7 +430,8 @@ def msmith():
         #log.debug('Done')
     print(Fore.GREEN,'all done ')
     driver.close()
-    df.to_csv('onlytemp.csv')
+    df['nsecode'].to_csv('onlytemp.csv',index=False,header=False)
+    shutil.copyfile('onlytemp.csv', 'C:\\Temp\\nps.tls')
  
   
     df['Symbol'] = df['nsecode']  # Copy nsecode values to Symbol column
@@ -452,8 +448,8 @@ def msmith():
     df_clean = df_clean.set_index('Symbol')  # Symbol as row names
     df_renamed_single = df_clean.rename(columns={'CompanyName': 'Company Name'})
     shutil.copyfile("C:\\npm\\dotchart-main\\public\\others.json", "C:\\npm\\dotchart-main\\public\\others_b.json")
-    json_output = df_renamed_single.reset_index().to_json("C:\\npm\\dotchart-main\\public\\others.json",orient='records', indent=2)
-    print(json_output)
+    df_renamed_single.reset_index().to_json("C:\\npm\\dotchart-main\\public\\others.json",orient='records', indent=2)
+
 
 
 if __name__=="__main__":   
