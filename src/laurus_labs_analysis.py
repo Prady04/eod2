@@ -132,7 +132,7 @@ def fetch_and_analyze_stock(ticker="LAURUSLABS.NS", days=365):
     Fetch and analyze stock data with proper MultiIndex handling
     """
     # Define the date range
-    end_date = datetime(2025, 8, 29)
+    end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     
     print(f"Fetching {ticker} data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
@@ -281,7 +281,7 @@ def monthly_breakdown(data):
     
     return monthly_stats
 
-def create_visualizations(data, monthly_stats):
+def create_visualizations(data, monthly_stats,symbol):
     """
     Create comprehensive visualizations including momentum scores
     """
@@ -500,10 +500,11 @@ def create_visualizations(data, monthly_stats):
     ax9.grid(True, alpha=0.3)
    
     
-    plt.suptitle('Laurus Labs (LAURUSLABS) - Comprehensive Analysis with Momentum Scoring', 
+    plt.suptitle(symbol+'- Comprehensive Analysis with Momentum Scoring', 
                 fontsize=16, fontweight='bold', y=0.98)
     
-    plt.show()
+    plt.savefig("C:\\temp\\"+symbol+".png")
+    print('wrote', symbol)
     
     return daily_returns
 
@@ -572,23 +573,28 @@ def main():
     print("="*55)
     
     # Fetch stock data
-    stock_data = fetch_and_analyze_stock("LAURUSLABS.NS", 365)
+    df = pd.read_csv('N500.csv')
+    lst = df['Symbol']
+    import time
+    for symbol in lst[:50]:
+        time.sleep(1)
+        stock_data = fetch_and_analyze_stock(symbol+".NS", 365)
     
-    if stock_data.empty:
-        print("Failed to fetch data. Exiting...")
-        return
+        if stock_data.empty:
+            print("Failed to fetch data. Exiting...")
+            return
+        
+        # Analyze positive days
+        analyzed_data = analyze_positive_days(stock_data)
     
-    # Analyze positive days
-    analyzed_data = analyze_positive_days(stock_data)
+        # Monthly breakdown
+        monthly_stats = monthly_breakdown(analyzed_data)
     
-    # Monthly breakdown
-    monthly_stats = monthly_breakdown(analyzed_data)
+        # Create visualizations
+        daily_returns = create_visualizations(analyzed_data, monthly_stats,symbol)
     
-    # Create visualizations
-    daily_returns = create_visualizations(analyzed_data, monthly_stats)
-    
-    # Generate insights
-    generate_insights(analyzed_data, monthly_stats, daily_returns)
+        # Generate insights
+        generate_insights(analyzed_data, monthly_stats, daily_returns)
 
 if __name__ == "__main__":
     main()

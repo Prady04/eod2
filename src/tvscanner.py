@@ -51,13 +51,14 @@ for i, df in enumerate(x):
 unusual_volume_stocks = (Query()
  .select(
      'name',
+     'close',
      'description',
      'logoid',
      'update_mode',
      'type',
      'typespecs',
      'relative_volume_10d_calc',
-     'close',
+     
      'pricescale',
      'minmov',
      'fractional',
@@ -84,6 +85,8 @@ unusual_volume_stocks = (Query()
      col('typespecs').has_none_of('preferred'),
      col('type') == 'stock',
      col('active_symbol') == True,
+     col('volume')>50000,
+     col('close')>30
      
  )
  .order_by('relative_volume_10d_calc', ascending=False, nulls_first=False)

@@ -212,7 +212,7 @@ try:
         if f.endswith('jpg'):
             if(f.startswith(outdir+"nifty")):
                 os.remove(f)
-                print(f"Deleted old image {f}")
+                
                 logger.info(f"Deleted old image {f}")
 except Exception as e:
     print(f"Error deleting old image: {e}")
