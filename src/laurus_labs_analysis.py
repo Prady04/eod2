@@ -378,25 +378,68 @@ def create_visualizations(data, monthly_stats,symbol):
         ax4.annotate(month.split('-')[1], 
                     (monthly_stats['Monthly_Return'].iloc[i], monthly_stats['Momentum_Score'].iloc[i]),
                     xytext=(5, 5), textcoords='offset points', fontsize=8)
-    
+    import matplotlib.dates as mdates
+    from mplfinance.original_flavor import candlestick_ohlc
+
+    # Prepare OHLC data for plotting
+    ohlc = data [['Open', 'High', 'Low', 'Close']].copy()
+    ohlc['Date'] = mdates.date2num(ohlc.index)   # convert datetime index to matplotlib float
+    ohlc = ohlc[['Date', 'Open', 'High', 'Low', 'Close']]
+    print(ohlc)
+
+    import matplotlib.dates as mdates
+    from matplotlib.patches import Rectangle
+
     # Plot 5: Stock price trend with volume
     ax5 = fig.add_subplot(gs[1, 1:])
     ax5_vol = ax5.twinx()
-    
-    # Price line
-    ax5.plot(data.index, data['Close'], linewidth=1.5, color='purple', label='Close Price')
-    ax5.set_ylabel('Close Price (₹)', color='purple')
-    ax5.tick_params(axis='y', labelcolor='purple')
-    
-    # Volume bars
-    ax5_vol.bar(data.index, data['Volume'], alpha=0.3, color='gray', width=1)
-    ax5_vol.set_ylabel('Volume', color='gray')
-    ax5_vol.tick_params(axis='y', labelcolor='gray')
-    
-    ax5.set_title('Stock Price Trend with Volume', fontsize=11, fontweight='bold')
-    ax5.set_xlabel('Date')
-    ax5.grid(True, alpha=0.3)
-    ax5.legend(loc='upper left')
+
+    # Prepare OHLC
+    try:
+        subset = data.iloc[-90:]
+        ohlc = subset[['Open', 'High', 'Low', 'Close']].copy()
+        ohlc['Date'] = mdates.date2num(ohlc.index)
+        
+        ohlc = ohlc[['Date', 'Open', 'High', 'Low', 'Close']].values
+
+        candle_width = 0.8  # width in days for daily data
+        candle_col_up = "green"
+        candle_col_down = "red"
+
+        for date, open_, high, low, close in ohlc:
+            color = candle_col_up if close >= open_ else candle_col_down
+            
+            # Wick (high-low line)
+            ax5.plot([date, date], [low, high], color=color, linewidth=1)
+            
+            # Candle body (rectangle)
+            rect = Rectangle((date - candle_width/2, min(open_, close)),     candle_width,        abs(close - open_),        facecolor=color,        edgecolor=color,        alpha=0.9    )
+            ax5.add_patch(rect)
+
+        # Format x-axis
+        ax5.xaxis_date()
+        ax5.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+        ax5.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+        # After plotting candles
+        ax5.set_xlim(ohlc[:,0].min(), ohlc[:,0].max())
+
+
+        ax5.set_ylabel("Price (₹)", color="purple")
+        ax5.tick_params(axis="y", labelcolor="purple")
+
+        # Volume bars
+        ax5_vol.bar(data.index, data["Volume"], alpha=0.3, color="gray", width=1)
+        ax5_vol.set_ylabel("Volume", color="gray")
+        ax5_vol.tick_params(axis="y", labelcolor="gray")
+
+        ax5.set_title("Stock Price Trend with Volume", fontsize=11, fontweight="bold")
+        ax5.set_xlabel("Date")
+        ax5.grid(True, alpha=0.3)
+    except Exception as e:
+        print(e)
+        pass
+
+
     
     # Plot 6: Daily returns distribution
     ax6 = fig.add_subplot(gs[2, 0])
@@ -576,13 +619,13 @@ def main():
     df = pd.read_csv('N500.csv')
     lst = df['Symbol']
     import time
-    for symbol in lst[:50]:
+    for symbol in lst[495:500]:
         time.sleep(1)
         stock_data = fetch_and_analyze_stock(symbol+".NS", 365)
     
         if stock_data.empty:
             print("Failed to fetch data. Exiting...")
-            return
+            continue
         
         # Analyze positive days
         analyzed_data = analyze_positive_days(stock_data)
@@ -591,7 +634,11 @@ def main():
         monthly_stats = monthly_breakdown(analyzed_data)
     
         # Create visualizations
-        daily_returns = create_visualizations(analyzed_data, monthly_stats,symbol)
+        try:
+            daily_returns = create_visualizations(analyzed_data, monthly_stats,symbol)
+        except Exception as e:
+            print(symbol, e)
+            pass
     
         # Generate insights
         generate_insights(analyzed_data, monthly_stats, daily_returns)
