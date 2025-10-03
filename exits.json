@@ -118,5 +118,29 @@
         "purchase_date": "2025-09-26",
         "sell_price": 2539.5,
         "sell_date": "2025-09-26"
+    },
+    {
+        "symbol": "AXISBANK.NS",
+        "quantity": 13,
+        "purchase_price": 1102.6,
+        "purchase_date": "2025-07-18",
+        "sell_price": 1181.699951171875,
+        "sell_date": "2025-10-03"
+    },
+    {
+        "symbol": "TATAMOTORS.NS",
+        "quantity": 22,
+        "purchase_price": 671.5499877929688,
+        "purchase_date": "2025-09-26",
+        "sell_price": 736.2000122070312,
+        "sell_date": "2025-10-03"
+    },
+    {
+        "symbol": "ADANIENT.NS",
+        "quantity": 6,
+        "purchase_price": 2404.800048828125,
+        "purchase_date": "2025-10-01",
+        "sell_price": 2580.699951171875,
+        "sell_date": "2025-10-03"
     }
 ]

@@ -20,13 +20,6 @@
             "purchase_date": "2025-07-15"
         }
     ],
-    "AXISBANK.NS": [
-        {
-            "purchase_price": 1102.6,
-            "quantity": 13,
-            "purchase_date": "2025-07-18"
-        }
-    ],
     "RELIANCE.NS": [
         {
             "purchase_price": 1427.0,
@@ -216,18 +209,11 @@
             "purchase_date": "2025-09-23"
         }
     ],
-    "TATAMOTORS.NS": [
+    "DRREDDY.NS": [
         {
-            "purchase_price": 671.5499877929688,
-            "quantity": 22,
-            "purchase_date": "2025-09-26"
-        }
-    ],
-    "ADANIENT.NS": [
-        {
-            "purchase_price": 2404.800048828125,
-            "quantity": 6,
-            "purchase_date": "2025-10-01"
+            "purchase_price": 1233.0,
+            "quantity": 12,
+            "purchase_date": "2025-10-03"
         }
     ]
 }
